@@ -3,7 +3,7 @@ import { DRAFT_KEY, type Metal, type StoneKey, type Mode } from './data';
 import { DEFAULT_CONFIG } from './config';
 import { allCadOk } from './pricing';
 import { nowTime } from './format';
-import { isSignedIn, saveOrderRemote } from './db';
+import { saveOrderRemote } from './db';
 import type { CheckKey, Customer, Dims, OrderState } from './types';
 
 export type Action =
@@ -143,7 +143,6 @@ export function useOrder() {
   }, [state]);
 
   useEffect(() => {
-    if (!isSignedIn()) return; // signed out: orders stay on this device
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       saveOrderRemote(state)

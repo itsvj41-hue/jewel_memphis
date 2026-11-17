@@ -1,20 +1,12 @@
 import { useState } from 'react';
-import { ApiError, pinSignIn } from './client';
+import { LockError, unlock } from './client';
 
-// The only sign-in screen: a personal PIN on a large keypad.
+// Shown until the counter is unlocked with the shared PIN.
 
 const MIN = 4;
 const MAX = 6;
 
-function errorText(e: unknown): string {
-  if (e instanceof ApiError) {
-    if (e.status === 429 && e.retryAfter) return `Too many attempts. Try again in ${Math.ceil(e.retryAfter / 60)} minutes.`;
-    return e.message;
-  }
-  return 'Something went wrong. Try again.';
-}
-
-export function PinScreen() {
+export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
   const [pin, setPin] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,9 +16,13 @@ export function PinScreen() {
     setBusy(true);
     setErr(null);
     try {
-      await pinSignIn(value);
+      await unlock(value);
+      onUnlocked();
     } catch (e) {
-      setErr(errorText(e));
+      const msg = e instanceof LockError && e.status === 429 && e.retryAfter
+        ? `Too many attempts. Try again in ${Math.ceil(e.retryAfter / 60)} minutes.`
+        : e instanceof Error ? e.message : 'Something went wrong. Try again.';
+      setErr(msg);
       setPin('');
     } finally {
       setBusy(false);
@@ -47,8 +43,8 @@ export function PinScreen() {
         <section className="card pin-card" aria-labelledby="pin-title">
           <div className="pin-brand" aria-hidden="true">GJ</div>
           <div className="sec">Golden Jewelers</div>
-          <h1 id="pin-title" className="pin-title">Enter your PIN</h1>
-          <p className="muted">Use the personal PIN your manager gave you.</p>
+          <h1 id="pin-title" className="pin-title">Enter PIN</h1>
+          <p className="muted">Enter the counter PIN to open the quoter.</p>
 
           <div className="pin-dots" role="status" aria-label={`${pin.length} digits entered`}>
             {Array.from({ length: MAX }, (_, i) => (
@@ -67,9 +63,9 @@ export function PinScreen() {
           </div>
 
           <button className="btn primary lg pin-submit" disabled={busy || pin.length < MIN} onClick={() => submit(pin)}>
-            {busy ? 'Checking…' : 'Sign in'}
+            {busy ? 'Checking…' : 'Unlock'}
           </button>
-          <p className="faint pin-hint">{MIN} to {MAX} digits. Ask your manager if you've forgotten your PIN.</p>
+          <p className="faint pin-hint">{MIN} to {MAX} digits.</p>
         </section>
       </main>
     </div>

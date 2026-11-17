@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { STEP_NAMES } from './order/data';
 import { useOrder } from './order/state';
 import { CustomerStep, DesignStep, EstimateStep, CadStep, ConfirmStep } from './order/steps';
@@ -6,17 +6,14 @@ import { RatesModal, SettingsModal, OrdersModal } from './order/modals';
 import { MarketProvider, useMarket } from './order/market';
 import { WorkshopTicket } from './order/ticket';
 import { newOrderNo } from './order/state';
-import { loadSession, session } from './auth/client';
-import { PinScreen } from './auth/AuthScreens';
-import { AccountModal } from './auth/Account';
-import { TeamModal } from './auth/Team';
+import { isUnlocked, lockCounter } from './lock/client';
+import { LockScreen } from './lock/LockScreen';
 
 const STEPS = [CustomerStep, DesignStep, EstimateStep, CadStep, ConfirmStep];
-type Modal = 'rates' | 'settings' | 'orders' | 'account' | 'team' | null;
+type Modal = 'rates' | 'settings' | 'orders' | null;
 
 function Counter() {
   const { mk } = useMarket();
-  const me = useSyncExternalStore(session.subscribe, () => session.user);
   const { state: s, dispatch, savedAt, syncError } = useOrder();
   const [modal, setModal] = useState<Modal>(null);
   const Step = STEPS[s.step];
@@ -63,8 +60,7 @@ function Counter() {
           Rates <span className="faint">{mk.rates.source === 'live' ? 'live' : 'owner'}</span>
         </button>
         <button className="btn ghost" onClick={() => setModal('settings')}>Settings</button>
-        {me && (me.role === 'admin' || me.role === 'manager') && <button className="btn ghost" onClick={() => setModal('team')}>Team</button>}
-        <button className="btn ghost" onClick={() => setModal('account')}>{me?.name || me?.email}</button>
+        <button className="btn ghost" onClick={() => { void lockCounter().then(() => window.location.reload()); }}>Lock</button>
         <button className="btn outline" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>New order</button>
       </div>
 
@@ -75,8 +71,6 @@ function Counter() {
       <WorkshopTicket s={s} />
 
       {modal === 'rates' && <RatesModal mk={mk} onClose={() => setModal(null)} />}
-      {modal === 'account' && <AccountModal onClose={() => setModal(null)} />}
-      {modal === 'team' && <TeamModal onClose={() => setModal(null)} />}
       {modal === 'settings' && <SettingsModal onClose={() => setModal(null)} />}
       {modal === 'orders' && (
         <OrdersModal
@@ -88,15 +82,14 @@ function Counter() {
   );
 }
 
-// The counter is behind sign-in. Email links (reset, invite, verify) open their own screen.
+// The counter is behind the PIN lock. The check runs once on load.
 function Gate() {
-  const [ready, setReady] = useState(false);
-  const user = useSyncExternalStore(session.subscribe, () => session.user);
+  const [state, setState] = useState<'checking' | 'locked' | 'open'>('checking');
   useEffect(() => {
-    void loadSession().finally(() => setReady(true));
+    void isUnlocked().then(ok => setState(ok ? 'open' : 'locked'));
   }, []);
-  if (!ready) return <div className="app" style={{ alignItems: 'center', justifyContent: 'center' }}><p className="muted">Loading…</p></div>;
-  if (!user) return <PinScreen />;
+  if (state === 'checking') return <div className="app" style={{ alignItems: 'center', justifyContent: 'center' }}><p className="muted">Loading…</p></div>;
+  if (state === 'locked') return <LockScreen onUnlocked={() => setState('open')} />;
   return <Counter />;
 }
 

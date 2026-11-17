@@ -1,8 +1,7 @@
 import type { OrderState } from './types';
-import { authed, session } from '../auth/client';
 
-// Shared orders go through /api/orders with the signed-in session. The server checks the
-// orders permission on every request.
+// Shared orders are saved through /api/orders. The server only accepts requests from an
+// unlocked counter (valid PIN cookie).
 
 export interface OrderRow {
   id: string;
@@ -13,11 +12,11 @@ export interface OrderRow {
   updated_at: string;
 }
 
-export const isSignedIn = (): boolean => session.user !== null;
-
 export async function saveOrderRemote(s: OrderState): Promise<void> {
-  await authed('/api/orders', {
+  const res = await fetch('/api/orders', {
     method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
     body: JSON.stringify({
       id: s.orderNo,
       customer_name: s.cust.name.trim(),
@@ -26,8 +25,11 @@ export async function saveOrderRemote(s: OrderState): Promise<void> {
       data: s,
     }),
   });
+  if (!res.ok) throw new Error(res.status === 401 ? 'Locked' : `Save failed (${res.status})`);
 }
 
 export async function listOrdersRemote(): Promise<OrderRow[]> {
-  return authed<OrderRow[]>('/api/orders', { method: 'GET' });
+  const res = await fetch('/api/orders', { credentials: 'same-origin', cache: 'no-store' });
+  if (!res.ok) throw new Error(res.status === 401 ? 'Locked. Enter the PIN.' : `Could not load orders (${res.status}).`);
+  return (await res.json()) as OrderRow[];
 }
