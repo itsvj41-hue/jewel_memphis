@@ -1,24 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { serviceClient } from './_lib/supabase.js';
-import { hasStaffPin } from './_lib/auth.js';
-import { authenticate } from './_lib/auth-service.js';
-import { bearerToken } from './_lib/http.js';
-import { SupabaseStore } from './_lib/store.js';
-import { defaultMailer } from './_lib/mailer.js';
-import { appUrl } from './_lib/config.js';
-import { can } from './_lib/rbac.js';
+import { isUnlocked } from './_lib/lock.js';
 
-// Shared orders. Every request needs the staff PIN in the x-staff-pin header.
+// Shared orders. Only an unlocked counter (valid PIN cookie) can read or save them.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store');
-  // Signed-in staff with the orders permission, or the shared staff PIN while it is still
-  // in use. Remove STAFF_PIN once every staff member has an account.
-  try {
-    const deps = { store: new SupabaseStore(), mailer: defaultMailer(), appUrl: appUrl() };
-    const auth = await authenticate(deps, bearerToken(req));
-    const allowed = (auth && can(auth.user.role, 'orders:use')) || hasStaffPin(req);
-    if (!allowed) return res.status(401).json({ error: 'Sign in to continue' });
+  if (!isUnlocked(req)) return res.status(401).json({ error: 'Locked. Enter the PIN.' });
 
+  try {
     const sb = serviceClient();
 
     if (req.method === 'GET') {
@@ -51,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('orders request failed', err);
+    console.error(`[orders] ${req.method} failed: ${(err as Error).message}`);
     return res.status(500).json({ error: 'Order request failed' });
   }
 }
