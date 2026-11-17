@@ -117,7 +117,7 @@ export function OrdersModal({ onOpen, onClose }: { onOpen: (o: OrderState) => vo
       {rows?.map(r => (
         <div className="kv" key={r.id} style={{ alignItems: 'center' }}>
           <span>
-            <b style={{ color: 'var(--ink)' }}>{r.id}</b> · {r.customer_name || 'No name'} · {r.ornament || 'No ornament'}
+            <b style={{ color: 'var(--text)' }}>{r.id}</b> · {r.customer_name || 'No name'} · {r.ornament || 'No ornament'}
             <br /><small>{r.status === 'sent' ? 'Sent to workshop' : 'Draft'} · {fmtDate(new Date(r.updated_at))}</small>
           </span>
           <button className="btn" onClick={() => onOpen(r.data)}>Open</button>

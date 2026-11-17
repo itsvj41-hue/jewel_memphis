@@ -100,7 +100,7 @@ export function DesignStep({ s, dispatch }: StepProps) {
             ? <div className="photo"><b>Photo of the ornament</b><span style={{ fontSize: 13 }}>Captured 12:01 PM ET</span></div>
             : (
               <div className="viewfinder">
-                <b style={{ font: "600 22px 'Cormorant Garamond', serif", color: 'var(--ink)' }}>Ready to capture</b>
+                <b>Ready to capture</b>
                 <span>Place the ornament flat on a plain background, with a ruler or coin in frame.</span>
               </div>
             )}

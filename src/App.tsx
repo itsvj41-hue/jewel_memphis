@@ -23,46 +23,55 @@ function Counter() {
     window.scrollTo(0, 0);
   }, [s.step]);
 
+  async function lockNow() {
+    await lockCounter();
+    window.location.reload();
+  }
+
   return (
     <div className="app">
       <header>
-        <div className="brand">
-          <div className="mark">GJ</div>
-          <div style={{ minWidth: 0 }}>
-            <div className="title">{title}</div>
-            <div className="sub">
-              Order #{s.orderNo} · {s.cust.name.trim() || 'Customer'}
-              {savedAt && <> · <span style={{ color: 'var(--faint)' }}>Draft saved {savedAt}</span></>}
-              {syncError && <> · <span style={{ color: 'var(--bad)' }}>{syncError}</span></>}
+        <div className="header-inner">
+          <div className="brand">
+            <div className="mark" aria-hidden="true">GJ</div>
+            <div className="brand-text">
+              <div className="title">{title}</div>
+              <div className="sub">
+                Order #{s.orderNo} · {s.cust.name.trim() || 'Customer'}
+                {savedAt && <> · <span className="faint">Saved {savedAt}</span></>}
+                {syncError && <> · <span style={{ color: 'var(--bad)' }}>{syncError}</span></>}
+              </div>
             </div>
           </div>
+          <div className="toolbar">
+            <button className="btn ghost" onClick={() => setModal('orders')}>Orders</button>
+            <button className="btn ghost" onClick={() => setModal('rates')}>
+              <span className={`dot-live ${mk.rates.source === 'live' ? 'on' : ''}`} aria-hidden="true" />
+              Rates
+            </button>
+            <button className="btn ghost" onClick={() => setModal('settings')}>Settings</button>
+            <button className="btn ghost" onClick={lockNow}>Lock</button>
+            <button className="btn dark" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>New order</button>
+          </div>
         </div>
-        <nav className="stepper">
-          {STEP_NAMES.map((name, i) => {
-            const cls = i === s.step ? 'on' : i < s.step ? 'done' : '';
-            return (
-              <span key={name} style={{ display: 'contents' }}>
-                <span className={`st ${cls}`}>
-                  <span className="dot">{i < s.step ? '✓' : i + 1}</span>
-                  <span>{name}</span>
+        <div className="steps-bar">
+          <nav className="stepper" aria-label="Order steps">
+            {STEP_NAMES.map((name, i) => {
+              const cls = i === s.step ? 'on' : i < s.step ? 'done' : '';
+              return (
+                <span key={name} style={{ display: 'contents' }}>
+                  <span className={`st ${cls}`} aria-current={i === s.step ? 'step' : undefined}>
+                    <span className="dot">{i < s.step ? '✓' : i + 1}</span>
+                    <span className="lbl">{name}</span>
+                  </span>
+                  {i < STEP_NAMES.length - 1 && <span className={`sep ${i < s.step ? 'done' : ''}`} />}
                 </span>
-                {i < STEP_NAMES.length - 1 && <span className="sep" />}
-              </span>
-            );
-          })}
-        </nav>
+              );
+            })}
+          </nav>
+        </div>
+        <div className="step-count">Step {s.step + 1} of {STEP_NAMES.length} · {STEP_NAMES[s.step]}</div>
       </header>
-
-      <div className="toolbar">
-        <button className="btn ghost" onClick={() => setModal('orders')}>Orders</button>
-        <button className="btn ghost status" onClick={() => setModal('rates')}>
-          <span className={`dot-live ${mk.rates.source === 'live' ? 'on' : ''}`} aria-hidden="true" />
-          Rates <span className="faint">{mk.rates.source === 'live' ? 'live' : 'owner'}</span>
-        </button>
-        <button className="btn ghost" onClick={() => setModal('settings')}>Settings</button>
-        <button className="btn ghost" onClick={() => { void lockCounter().then(() => window.location.reload()); }}>Lock</button>
-        <button className="btn outline" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>New order</button>
-      </div>
 
       <main>
         <Step s={s} dispatch={dispatch} onShowRates={() => setModal('rates')} />
