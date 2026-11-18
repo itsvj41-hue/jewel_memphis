@@ -1,7 +1,7 @@
 import { Icon } from '../ui/Icon';
 import { useState, type ChangeEvent } from 'react';
 import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
-import { allCadOk, allOptions, cadRules, custErrors, custOk, dimsOk, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
+import { allCadOk, allOptions, cadRules, custErrors, custOk, dimsOk, parseDeposit, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
 import { taxLabel } from './config';
 import { useMarket } from './market';
 import { fmtDate, isoOf, money, parseISO } from './format';
@@ -453,6 +453,11 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
   const balance = o.total - depositAmt;
   const src = s.mode === 'picture' ? 'Picture, size estimated from the photo' : 'Size entered from the design';
   const locked = s.sent;
+  // A saved custom deposit (not one of the preset buttons) shows in the box.
+  const [depositText, setDepositText] = useState(() => (mk.cfg.deposits.includes(s.deposit) ? '' : String(s.deposit)));
+  const typed = parseDeposit(depositText);
+  const presets = mk.cfg.deposits;
+  const depositInvalid = depositText.trim() !== '' && typed === null;
 
   // Items the app can check itself: each open one has a Fix link to the screen that completes it.
   const automatic: Todo[] = [
@@ -582,11 +587,38 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
             <div className="kv total"><span>Total</span><b>{money(o.total)}</b></div>
             <div className="divider" />
             <div className="sec">Deposit <span className="hint">paid before the workshop starts</span></div>
-            <div className="chips">
-              {mk.cfg.deposits.map(p => (
-                <button key={p} className={`chip ${s.deposit === p ? 'on' : ''}`} disabled={locked} onClick={() => dispatch({ type: 'deposit', value: p })}>{p}%</button>
+            <div className="chips" role="group" aria-label="Deposit percentage">
+              {presets.map(p => (
+                <button
+                  key={p}
+                  className={`chip ${s.deposit === p && !depositText.trim() ? 'on' : ''}`}
+                  disabled={locked}
+                  onClick={() => { setDepositText(''); dispatch({ type: 'deposit', value: p }); }}
+                >
+                  {p}%
+                </button>
               ))}
             </div>
+            <label className="field deposit-custom">
+              <span>Or enter another deposit<span className="opt">1 to 100%</span></span>
+              <div className="affix">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  disabled={locked}
+                  placeholder="e.g. 30"
+                  aria-invalid={depositInvalid ? 'true' : undefined}
+                  value={depositText}
+                  onChange={e => {
+                    setDepositText(e.target.value);
+                    const v = parseDeposit(e.target.value);
+                    if (v !== null) dispatch({ type: 'deposit', value: v });
+                  }}
+                />
+                <span className="unit">%</span>
+              </div>
+              {depositInvalid && <small className="field-error">Enter a percentage from 1 to 100.</small>}
+            </label>
             <Kv label={`Deposit due now (${s.deposit}%)`} value={money(depositAmt)} />
             <Kv label="Balance due at pickup" value={money(balance)} />
           </section>

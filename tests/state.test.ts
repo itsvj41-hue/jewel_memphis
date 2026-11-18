@@ -72,3 +72,13 @@ describe('order numbers and saved orders', () => {
     expect(next.restored).toBe(false);
   });
 });
+
+describe('deposit action', () => {
+  it('keeps the previous deposit when given an invalid value', () => {
+    const base = { ...blankOrder('CO-3'), deposit: 50 };
+    expect(reduce(base, { type: 'deposit', value: 30 }).deposit).toBe(30);
+    expect(reduce(base, { type: 'deposit', value: 150 }).deposit).toBe(50);
+    expect(reduce(base, { type: 'deposit', value: 0 }).deposit).toBe(50);
+    expect(reduce(base, { type: 'deposit', value: NaN }).deposit).toBe(50);
+  });
+});

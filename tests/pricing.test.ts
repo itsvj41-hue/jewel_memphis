@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, type OwnerConfig } from '../src/order/config';
-import { allCadOk, allOptions, cadRules, custOk, dimsOk, MAX_DIM_MM, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
+import { allCadOk, allOptions, cadRules, custOk, dimsOk, MAX_DIM_MM, parseDeposit, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
 import { TROY_OZ_GRAMS } from '../src/order/data';
 
 const rates = { gold24Gram: 130, silverGram: 1.6, platinumGram: 47, source: 'manual' as const, time: 'test' };
@@ -119,5 +119,19 @@ describe('size limits and shares', () => {
     expect(p.subtotal).toBe(0);
     expect(Number.isFinite(p.shareMetal)).toBe(true);
     expect(p.shareMetal).toBe(0);
+  });
+});
+
+describe('custom deposit', () => {
+  it('accepts percentages from 1 to 100 and rejects everything else', () => {
+    expect(parseDeposit('30')).toBe(30);
+    expect(parseDeposit(' 33.5% ')).toBe(33.5);
+    expect(parseDeposit('1')).toBe(1);
+    expect(parseDeposit('100')).toBe(100);
+    expect(parseDeposit('0')).toBeNull();
+    expect(parseDeposit('101')).toBeNull();
+    expect(parseDeposit('-5')).toBeNull();
+    expect(parseDeposit('abc')).toBeNull();
+    expect(parseDeposit('')).toBeNull();
   });
 });

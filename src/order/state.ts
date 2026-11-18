@@ -115,7 +115,8 @@ export function reduce(s: OrderState, a: Action): OrderState {
     case 'generateCad':
       return allCadOk(s.dims) ? { ...s, exact: true } : s;
     case 'deposit':
-      return { ...s, deposit: a.value };
+      // Only 1 to 100 percent is a real deposit. Anything else keeps the current value.
+      return Number.isFinite(a.value) && a.value > 0 && a.value <= 100 ? { ...s, deposit: a.value } : s;
     case 'check':
       return { ...s, checks: { ...s.checks, [a.key]: a.on } };
     case 'send':

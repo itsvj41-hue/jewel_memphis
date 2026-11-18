@@ -133,6 +133,12 @@ export function custErrors(c: Customer): CustErrors {
   return out;
 }
 
+// A deposit typed by the user: a percentage from 1 to 100. Returns null when it is not valid.
+export function parseDeposit(text: string): number | null {
+  const v = Number(text.trim().replace('%', ''));
+  return text.trim() !== '' && Number.isFinite(v) && v > 0 && v <= 100 ? Math.round(v * 100) / 100 : null;
+}
+
 export function custOk(c: Customer): boolean {
   return Object.keys(custErrors(c)).length === 0;
 }
