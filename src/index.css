@@ -457,6 +457,50 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .pin-submit { width: 100%; max-width: 300px; margin: var(--s2) auto 0; }
 .pin-hint { margin: 0; }
 
+/* 14b. Required fields, errors and the order summary ----------------------- */
+.req { color: var(--accent); font-weight: 700; margin-left: 2px; }
+.field-error { font-size: var(--fs-xs); font-weight: 600; color: var(--bad); line-height: 1.4; }
+input[aria-invalid="true"], textarea[aria-invalid="true"] {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px var(--bad-soft);
+}
+.size-field { display: flex; flex-direction: column; gap: var(--s2); font-size: var(--fs-sm); font-weight: 500; color: var(--text-2); min-width: 0; }
+.size-field input { font-size: var(--fs-lg); font-weight: 600; }
+.actions-stack { display: flex; flex-direction: column; gap: var(--s2); }
+.actions-stack .btn { width: 100%; }
+
+.summary { gap: var(--s4); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); flex-wrap: wrap; }
+.summary-title { font-size: var(--fs-2xl); font-weight: 650; letter-spacing: -.02em; line-height: 1.2; margin-top: var(--s1); }
+.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3); }
+.summary-grid > div { background: var(--surface-2); border-radius: var(--r-md); padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: 4px; }
+.summary-grid small { font-size: var(--fs-xs); color: var(--text-2); font-weight: 500; }
+.summary-grid b { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+
+.todo-list { display: flex; flex-direction: column; gap: var(--s2); }
+.todo {
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--s3); align-items: center;
+  padding: var(--s3) var(--s4); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface);
+}
+.todo.open { border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); background: var(--warn-soft); }
+.todo.done { background: var(--surface); }
+.todo.confirm { grid-template-columns: auto 1fr; cursor: pointer; min-height: var(--tap); }
+.todo.confirm input { width: 22px; height: 22px; margin: 0; accent-color: var(--ok); cursor: pointer; }
+.todo.confirm:has(input:disabled) { cursor: default; opacity: .7; }
+.todo-ic {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--warn); color: #fff;
+}
+.todo.done .todo-ic { background: var(--ok-soft); color: var(--ok); }
+.todo-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.todo-body b { font-size: var(--fs-sm); font-weight: 600; }
+.todo-body small { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.45; }
+.todo.open .todo-body small { color: var(--warn); }
+
+@media (max-width: 900px) {
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* 15. Tablet and phone ------------------------------------------------------ */
 /* iPad landscape (≈1024–1180): keep two columns, tighten gutters */
 @media (max-width: 1100px) {

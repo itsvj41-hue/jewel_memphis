@@ -91,8 +91,22 @@ export function allOptions(mk: Market, d: Dims, mode: Mode, exact: boolean): Opt
 // Largest size the counter accepts. Nothing in this range is a real ornament.
 export const MAX_DIM_MM = 300;
 
+export type SizeKey = keyof Dims;
+export type SizeErrors = Partial<Record<SizeKey, string>>;
+
+// Each required size, with the message shown under its box.
+export function sizeErrors(d: Dims): SizeErrors {
+  const out: SizeErrors = {};
+  (['w', 'h', 'd'] as const).forEach(k => {
+    const v = d[k];
+    if (!Number.isFinite(v) || v <= 0) out[k] = 'Required. Enter a size above 0.';
+    else if (v > MAX_DIM_MM) out[k] = `Too large. The limit is ${MAX_DIM_MM} mm.`;
+  });
+  return out;
+}
+
 export function dimsOk(d: Dims): boolean {
-  return (['w', 'h', 'd'] as const).every(k => Number.isFinite(d[k]) && d[k] > 0 && d[k] <= MAX_DIM_MM);
+  return Object.keys(sizeErrors(d)).length === 0;
 }
 
 // A phone number needs at least 7 digits. Email is optional, but if given it must look like one.
@@ -105,8 +119,22 @@ export function emailOk(e: string): boolean {
   return v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+export type CustKey = 'name' | 'phone' | 'ornament' | 'email';
+export type CustErrors = Partial<Record<CustKey, string>>;
+
+// Required fields (name, phone, ornament) and the one optional field that must be valid if filled.
+export function custErrors(c: Customer): CustErrors {
+  const out: CustErrors = {};
+  if (!c.name.trim()) out.name = 'Required. Enter the customer’s full name.';
+  if (!c.phone.trim()) out.phone = 'Required. Enter a phone number.';
+  else if (!phoneOk(c.phone)) out.phone = 'Enter at least 7 digits.';
+  if (!c.ornament.trim()) out.ornament = 'Required. Name the ornament, for example “Lotus jhumka”.';
+  if (!emailOk(c.email)) out.email = 'This email looks incomplete. Example: name@example.com';
+  return out;
+}
+
 export function custOk(c: Customer): boolean {
-  return Boolean(c.name.trim() && phoneOk(c.phone) && c.ornament.trim() && emailOk(c.email));
+  return Object.keys(custErrors(c)).length === 0;
 }
 
 export interface CadRule {

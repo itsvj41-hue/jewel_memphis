@@ -17,19 +17,34 @@ export function Kv({ label, value, cls = '' }: { label: ReactNode; value: ReactN
   );
 }
 
-export function NumField({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+export function NumField({ label, value, onChange, error, id }: { label: string; value: number; onChange: (n: number) => void; error?: string; id?: string }) {
   return (
-    <label>
-      {label}
+    <label className="size-field">
+      <span>{label}<span className="req" aria-hidden="true">*</span></span>
       <input
+        id={id}
         type="number"
+        inputMode="decimal"
         min="0.5"
         step="0.5"
+        aria-required="true"
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error && id ? `${id}-err` : undefined}
         value={Number.isFinite(value) ? value : ''}
         onChange={e => onChange(parseFloat(e.target.value))}
       />
+      {error && <small id={id ? `${id}-err` : undefined} className="field-error">{error}</small>}
     </label>
   );
+}
+
+// Moves the keyboard and screen-reader focus to the first field that needs attention.
+export function focusFirstInvalid(): void {
+  window.setTimeout(() => {
+    const el = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+    el?.focus();
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 0);
 }
 
 export function MetalChips({ s, dispatch }: StepProps) {

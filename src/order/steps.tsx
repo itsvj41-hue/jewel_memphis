@@ -1,51 +1,87 @@
 import { Icon } from '../ui/Icon';
-import type { ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
-import { allCadOk, allOptions, cadRules, custOk, dimsOk, price, readyDate, type Market, type Option } from './pricing';
+import { allCadOk, allOptions, cadRules, custErrors, custOk, dimsOk, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
 import { taxLabel } from './config';
 import { useMarket } from './market';
 import { fmtDate, isoOf, money, parseISO } from './format';
 import { CadViews } from './CadViews';
 import { newOrderNo } from './state';
-import { Kv, MetalChips, NumField, Proportions, StoneChips, TAX_SHORT, type StepProps } from './shared';
+import { focusFirstInvalid, Kv, MetalChips, NumField, Proportions, StoneChips, TAX_SHORT, type StepProps } from './shared';
 
 function priceOf(mk: Market, s: StepProps['s']) {
   return price(mk, s.dims, s.metal, s.stone, s.mode, s.exact);
 }
 
 /* ============================ STEP 1: CUSTOMER ============================ */
+const REQUIRED_LABEL: Record<'name' | 'phone' | 'ornament', string> = {
+  name: 'Full name',
+  phone: 'Phone',
+  ornament: 'Ornament name',
+};
+
 export function CustomerStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
+  const [tried, setTried] = useState(false);
   const c = s.cust;
+  const errs: CustErrors = custErrors(c);
   const ready = readyDate(s.metal, s.stone, s.mode);
   const set = (key: keyof typeof c) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     dispatch({ type: 'cust', key, value: e.target.value });
+
+  // Required fields show their message after the first Continue. An email shows as soon as it is wrong.
+  const shown = (k: CustKey) => (k === 'email' ? errs.email : tried ? errs[k] : undefined);
+  const missingRequired = (['name', 'phone', 'ornament'] as const).filter(k => errs[k]);
+
+  const next = () => {
+    setTried(true);
+    if (Object.keys(errs).length > 0) {
+      focusFirstInvalid();
+      return;
+    }
+    dispatch({ type: 'go', step: 1 });
+  };
+
+  const bannerText = missingRequired.length
+    ? `Fill in the required fields marked *: ${missingRequired.map(k => REQUIRED_LABEL[k]).join(', ')}.`
+    : 'Check the email address.';
 
   return (
     <>
       {s.restored && (
         <div className="banner ok"><span className="ic"><Icon name="check" size={14} /></span><span>Draft restored. Your earlier entries are still here.</span></div>
       )}
+      {tried && Object.keys(errs).length > 0 && (
+        <div className="banner warn" role="alert"><span className="ic"><Icon name="alert" size={14} /></span><span>{bannerText}</span></div>
+      )}
       <div className="grid2">
         <section className="card">
-          <div className="sec">Customer</div>
+          <div className="sec">Customer <span className="hint"><span className="req">*</span> Required</span></div>
           <div className="fields">
-            <label className="field"><span>Full name<span className="req">*</span></span>
-              <input value={c.name} placeholder="e.g. Meera Sharma" onChange={set('name')} />
+            <label className="field">
+              <span>Full name<span className="req" aria-hidden="true">*</span></span>
+              <input id="f-name" aria-required="true" aria-invalid={shown('name') ? 'true' : undefined} value={c.name} placeholder="e.g. Meera Sharma" onChange={set('name')} />
+              {shown('name') && <small className="field-error">{shown('name')}</small>}
             </label>
-            <label className="field"><span>Phone<span className="req">*</span></span>
-              <input value={c.phone} placeholder="(555) 000-0000" onChange={set('phone')} />
+            <label className="field">
+              <span>Phone<span className="req" aria-hidden="true">*</span></span>
+              <input id="f-phone" aria-required="true" inputMode="tel" aria-invalid={shown('phone') ? 'true' : undefined} value={c.phone} placeholder="(555) 000-0000" onChange={set('phone')} />
+              {shown('phone') && <small className="field-error">{shown('phone')}</small>}
             </label>
-            <label className="field full"><span>Email<span className="opt">optional</span></span>
-              <input type="email" value={c.email} placeholder="name@example.com" onChange={set('email')} />
+            <label className="field full">
+              <span>Email<span className="opt">optional</span></span>
+              <input type="email" aria-invalid={shown('email') ? 'true' : undefined} value={c.email} placeholder="name@example.com" onChange={set('email')} />
+              {shown('email') && <small className="field-error">{shown('email')}</small>}
             </label>
           </div>
         </section>
         <section className="card">
-          <div className="sec">Ornament</div>
+          <div className="sec">Ornament <span className="hint"><span className="req">*</span> Required</span></div>
           <div className="fields">
-            <label className="field full"><span>Ornament name<span className="req">*</span></span>
-              <input value={c.ornament} placeholder="e.g. Lotus jhumka" onChange={set('ornament')} />
+            <label className="field full">
+              <span>Ornament name<span className="req" aria-hidden="true">*</span></span>
+              <input id="f-ornament" aria-required="true" aria-invalid={shown('ornament') ? 'true' : undefined} value={c.ornament} placeholder="e.g. Lotus jhumka" onChange={set('ornament')} />
+              {shown('ornament') && <small className="field-error">{shown('ornament')}</small>}
             </label>
             <div className="field full">
               <span>Occasion<span className="opt">optional</span></span>
@@ -55,11 +91,13 @@ export function CustomerStep({ s, dispatch }: StepProps) {
                 ))}
               </div>
             </div>
-            <label className="field"><span>Needed by</span>
+            <label className="field">
+              <span>Needed by<span className="opt">optional</span></span>
               <input type="date" min={isoOf(ready)} value={c.needed} onChange={set('needed')} />
               <small>Earliest ready date: {fmtDate(ready)}</small>
             </label>
-            <label className="field"><span>Notes<span className="opt">optional</span></span>
+            <label className="field">
+              <span>Notes<span className="opt">optional</span></span>
               <textarea placeholder="Anything the workshop should know" value={c.notes} onChange={set('notes')} />
             </label>
           </div>
@@ -77,9 +115,11 @@ export function CustomerStep({ s, dispatch }: StepProps) {
         </div>
       </section>
       <div className="actions">
-        <span className="faint">Name, phone and ornament name are required</span>
+        <span className={custOk(c) ? 'faint' : 'field-error'}>
+          {custOk(c) ? 'All required fields are complete.' : 'Complete the fields marked * to continue.'}
+        </span>
         <div className="right">
-          <button className="btn primary lg" disabled={!custOk(c)} onClick={() => dispatch({ type: 'go', step: 1 })}>
+          <button className="btn primary lg" onClick={next}>
             Continue to design
           </button>
         </div>
@@ -91,6 +131,8 @@ export function CustomerStep({ s, dispatch }: StepProps) {
 /* ============================ STEP 2: DESIGN ============================ */
 export function DesignStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
+  const [sizeTried, setSizeTried] = useState(false);
+  const se = sizeErrors(s.dims);
   const back = <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 0 })}><Icon name="arrowLeft" size={16} /> Back</button>;
 
   if (s.mode === 'picture') {
@@ -136,9 +178,9 @@ export function DesignStep({ s, dispatch }: StepProps) {
         <section className="card">
           <div className="sec">Size <span className="hint">millimetres</span></div>
           <div className="size">
-            <NumField label="Width" value={s.dims.w} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
-            <NumField label="Height" value={s.dims.h} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
-            <NumField label="Depth" value={s.dims.d} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
+            <NumField id="size-w" label="Width" value={s.dims.w} error={sizeTried ? se.w : undefined} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
+            <NumField id="size-h" label="Height" value={s.dims.h} error={sizeTried ? se.h : undefined} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
+            <NumField id="size-d" label="Depth" value={s.dims.d} error={sizeTried ? se.d : undefined} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
           </div>
           <div className="sec" style={{ marginTop: 6 }}>Metal</div>
           <MetalChips s={s} dispatch={dispatch} />
@@ -153,7 +195,17 @@ export function DesignStep({ s, dispatch }: StepProps) {
           </div>
           <p className="muted">Updates as you change the size, metal or stones.</p>
           <div className="grow" />
-          <button className="btn primary lg" disabled={!dimsOk(s.dims)} onClick={() => dispatch({ type: 'continueToEstimate' })}>
+          {sizeTried && !dimsOk(s.dims) && (
+            <div className="banner warn" role="alert"><span className="ic"><Icon name="alert" size={14} /></span><span>Enter the width, height and depth in millimetres to continue.</span></div>
+          )}
+          <button
+            className="btn primary lg"
+            onClick={() => {
+              setSizeTried(true);
+              if (!dimsOk(s.dims)) { focusFirstInvalid(); return; }
+              dispatch({ type: 'continueToEstimate' });
+            }}
+          >
             Continue to estimate
           </button>
         </section>
@@ -382,6 +434,14 @@ export function CadStep({ s, dispatch }: StepProps) {
 }
 
 /* ============================ STEP 5: CONFIRM ============================ */
+interface Todo {
+  key: string;
+  label: string;
+  detail: string;
+  done: boolean;
+  fixStep?: number; // step to go back to, when the fix is made on another screen
+}
+
 export function ConfirmStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
   const o = priceOf(mk, s);
@@ -391,62 +451,129 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
   const dateOk = !needed || needed >= ready;
   const depositAmt = (o.total * s.deposit) / 100;
   const balance = o.total - depositAmt;
-  const src = s.mode === 'picture' ? 'Picture, size estimated from photo' : 'Dimensions entered by owner';
+  const src = s.mode === 'picture' ? 'Picture, size estimated from the photo' : 'Size entered from the design';
+  const locked = s.sent;
 
-  const missing: string[] = [];
-  if (!s.exact) missing.push('CAD model');
-  if (!s.checks.details) missing.push('customer check');
-  if (!s.checks.design) missing.push('design approval');
-  if (!s.checks.price) missing.push('price agreement');
-  if (!s.checks.deposit) missing.push('deposit');
-  if (needed && needed < ready) missing.push('needed-by date');
+  // Items the app can check itself: each open one has a Fix link to the screen that completes it.
+  const automatic: Todo[] = [
+    {
+      key: 'details', label: 'Customer details are complete',
+      detail: custOk(c) ? `${c.name} · ${c.phone}` : 'Name, phone and ornament name are required.',
+      done: custOk(c), fixStep: 0,
+    },
+    {
+      key: 'cad', label: 'CAD model is generated',
+      detail: s.exact ? 'Volume and price are now final.' : 'Until then the price is only an estimate.',
+      done: s.exact, fixStep: 3,
+    },
+    {
+      key: 'date', label: 'Needed-by date is achievable',
+      detail: !needed
+        ? 'No needed-by date set.'
+        : dateOk
+          ? `Needed by ${fmtDate(needed)}.`
+          : `Needed by ${fmtDate(needed)} is earlier than the earliest ready date, ${fmtDate(ready)}.`,
+      done: dateOk, fixStep: 0,
+    },
+  ];
 
-  const checkItem = (key: keyof typeof s.checks, text: string) => (
-    <label className={`check ${s.checks[key] ? 'on' : ''}`}>
+  // Items the owner confirms with the customer.
+  const confirmations: { key: keyof typeof s.checks; label: string }[] = [
+    { key: 'details', label: 'The customer has checked their name, phone and dates' },
+    { key: 'design', label: 'The customer has approved the size, metal and stones' },
+    { key: 'price', label: 'The customer has agreed to the price' },
+    { key: 'deposit', label: `The deposit of ${money(depositAmt)} (${s.deposit}%) has been collected` },
+  ];
+
+  const openCount = automatic.filter(t => !t.done).length + confirmations.filter(t => !s.checks[t.key]).length;
+
+  const todoRow = (t: Todo) => (
+    <div key={t.key} className={`todo ${t.done ? 'done' : 'open'}`}>
+      <span className="todo-ic" aria-hidden="true"><Icon name={t.done ? 'check' : 'alert'} size={14} /></span>
+      <div className="todo-body">
+        <b>{t.label}</b>
+        <small>{t.detail}</small>
+      </div>
+      {!t.done && !locked && t.fixStep !== undefined && (
+        <button className="link" onClick={() => dispatch({ type: 'go', step: t.fixStep! })}>Fix</button>
+      )}
+    </div>
+  );
+
+  const confirmRow = (key: keyof typeof s.checks, text: string) => (
+    <label key={key} className={`todo confirm ${s.checks[key] ? 'done' : 'open'}`}>
       <input
         type="checkbox"
         checked={s.checks[key]}
-        disabled={s.sent}
+        disabled={locked}
         onChange={e => dispatch({ type: 'check', key, on: e.target.checked })}
       />
-      <span>{text}</span>
+      <div className="todo-body"><b>{text}</b></div>
     </label>
   );
 
   return (
     <>
-      {s.sent && (
-        <div className="banner ok">
+      {locked && (
+        <div className="banner ok" role="status">
           <span className="ic"><Icon name="check" size={14} /></span>
-          <span>Order #{s.orderNo} sent to the workshop for {c.ornament}. Ready by {fmtDate(ready)}.</span>
+          <span>Order {s.orderNo} was sent to the workshop for {c.ornament}. Ready by {fmtDate(ready)}.</span>
         </div>
       )}
+
+      <section className="card summary">
+        <div className="summary-head">
+          <div>
+            <div className="sec">Order {s.orderNo}</div>
+            <h2 className="summary-title">{c.ornament}</h2>
+            <div className="muted">{c.name} · {c.phone}{c.occasion ? ` · ${c.occasion}` : ''}</div>
+          </div>
+          <div className={`pill ${s.exact ? 'ok' : 'warn'}`}>
+            {s.exact ? 'Final price (CAD made)' : 'Estimate (CAD not made yet)'}
+          </div>
+        </div>
+        <div className="summary-grid">
+          <div><small>Total</small><b>{money(o.total)}</b></div>
+          <div><small>Deposit due now ({s.deposit}%)</small><b>{money(depositAmt)}</b></div>
+          <div><small>Balance due at pickup</small><b>{money(balance)}</b></div>
+          <div><small>Ready by</small><b>{fmtDate(ready)}</b></div>
+        </div>
+      </section>
+
       <div className="grid2">
         <div className="col">
           <section className="card">
-            <div className="sec">Customer</div>
-            <Kv label="Name" value={c.name} />
+            <div className="sec">Before you send</div>
+            <p className="muted">Each item must be done. Use Fix to go to the screen that completes it.</p>
+            <div className="todo-list">
+              {automatic.map(todoRow)}
+            </div>
+            <div className="sec" style={{ marginTop: 6 }}>Confirm with the customer</div>
+            <div className="todo-list">
+              {confirmations.map(t => confirmRow(t.key, t.label))}
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="sec">Order details</div>
+            <Kv label="Customer" value={c.name} />
             <Kv label="Phone" value={c.phone} />
             {c.email && <Kv label="Email" value={c.email} />}
             {c.occasion && <Kv label="Occasion" value={c.occasion} />}
-            {needed && <Kv label="Needed by" value={fmtDate(needed)} />}
-            {c.notes && <div className="note neutral">{c.notes}</div>}
-          </section>
-          <section className="card">
-            <div className="sec">Ornament · {c.ornament}</div>
-            <Kv label="Design input" value={src} />
-            <Kv label="Size (W × H × D)" value={`${s.dims.w} × ${s.dims.h} × ${s.dims.d} mm`} />
+            <Kv label="Needed by" value={needed ? fmtDate(needed) : 'Not set'} />
+            <div className="divider" />
+            <Kv label="Ornament" value={c.ornament} />
+            <Kv label="How the design was given" value={src} />
+            <Kv label="Size (width × height × depth)" value={`${s.dims.w} × ${s.dims.h} × ${s.dims.d} mm`} />
             <Kv label="Metal" value={`${KARATS[s.metal].label}, ${o.grams.toFixed(2)} g`} />
             <Kv label="Stones" value={`${STONES[s.stone].name}, 0.20 ct`} />
-            <div className="divider" />
-            <div className="sec">Proportions <span className="hint">fixed by design</span></div>
-            <Proportions share={{ metal: o.shareMetal, stone: o.shareStone, making: o.shareMaking }} />
+            {c.notes && <div className="note neutral">Notes for the workshop: {c.notes}</div>}
           </section>
         </div>
 
         <div className="col">
           <section className="card">
-            <div className="sec">Price</div>
+            <div className="sec">Price breakdown</div>
             <Kv label="Metal" value={money(o.metal)} />
             <Kv label="Stones" value={money(o.stone)} />
             <Kv label="Making and setting" value={money(o.making)} />
@@ -454,46 +581,34 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
             <Kv label={taxLabel(mk.cfg)} value={money(o.tax)} />
             <div className="kv total"><span>Total</span><b>{money(o.total)}</b></div>
             <div className="divider" />
-            <div className="sec">Deposit <span className="hint">due before the workshop starts</span></div>
+            <div className="sec">Deposit <span className="hint">paid before the workshop starts</span></div>
             <div className="chips">
               {mk.cfg.deposits.map(p => (
-                <button key={p} className={`chip ${s.deposit === p ? 'on' : ''}`} disabled={s.sent} onClick={() => dispatch({ type: 'deposit', value: p })}>{p}%</button>
+                <button key={p} className={`chip ${s.deposit === p ? 'on' : ''}`} disabled={locked} onClick={() => dispatch({ type: 'deposit', value: p })}>{p}%</button>
               ))}
             </div>
-            <Kv label={`Deposit (${s.deposit}%)`} value={money(depositAmt)} />
+            <Kv label={`Deposit due now (${s.deposit}%)`} value={money(depositAmt)} />
             <Kv label="Balance due at pickup" value={money(balance)} />
           </section>
 
           <section className="card">
-            <div className="sec">Workshop schedule</div>
-            <Kv label="Earliest ready date" value={fmtDate(ready)} />
-            {needed && !dateOk
-              ? <div className="note bad">The needed-by date ({fmtDate(needed)}) is earlier than the earliest ready date. Change the date on the customer page, or agree a later date with the customer.</div>
-              : <div className="note ok">{needed ? 'Needed-by date is achievable.' : 'No needed-by date set.'}</div>}
-          </section>
-
-          <section className="card">
-            <div className="sec">Cross-check before sending</div>
-            {!s.exact && <div className="note warn">Generate the CAD model on the previous step before sending.</div>}
-            <div className="checks-block">
-              {checkItem('details', 'Customer name, phone and dates are correct')}
-              {checkItem('design', 'Ornament size, metal and stones are approved')}
-              {checkItem('price', 'Price and proportions are agreed')}
-              {checkItem('deposit', `Deposit of ${money(depositAmt)} collected`)}
-            </div>
-            <div className="grow" />
-            <button className="btn lg" onClick={() => window.print()}>Print workshop ticket</button>
-            {s.sent
-              ? <button className="btn dark lg" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>Start a new order</button>
-              : (
-                <>
-                  <button className="btn primary lg" disabled={missing.length > 0} onClick={() => dispatch({ type: 'send' })}>Send to workshop</button>
-                  <div className="actions">
-                    <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 3 })}><Icon name="arrowLeft" size={16} /> Back</button>
-                    <span className="faint">{missing.length ? `Missing: ${missing.join(', ')}` : 'Ready to send'}</span>
-                  </div>
-                </>
+            <div className="sec">Send</div>
+            {!s.exact && !locked && <div className="note warn">The price is an estimate. Generate the CAD model on the CAD step to make it final.</div>}
+            <div className="actions-stack">
+              {locked
+                ? <button className="btn dark lg" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>Start a new order</button>
+                : (
+                  <button className="btn primary lg" disabled={openCount > 0} onClick={() => dispatch({ type: 'send' })}>
+                    {openCount > 0 ? `Finish ${openCount} item${openCount === 1 ? '' : 's'} to send` : 'Send to workshop'}
+                  </button>
+                )}
+              <button className="btn lg" onClick={() => window.print()}>Print workshop ticket</button>
+              {!locked && (
+                <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 3 })}>
+                  <Icon name="arrowLeft" size={16} /> Back to CAD
+                </button>
               )}
+            </div>
           </section>
         </div>
       </div>
