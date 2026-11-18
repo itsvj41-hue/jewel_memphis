@@ -40,7 +40,6 @@ function Counter() {
               <div className="sub">
                 Order #{s.orderNo} · {s.cust.name.trim() || 'Customer'}
                 {savedAt && <> · <span className="faint">Saved {savedAt}</span></>}
-                {syncError && <> · <span style={{ color: 'var(--bad)' }}>{syncError}</span></>}
               </div>
             </div>
           </div>

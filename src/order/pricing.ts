@@ -127,9 +127,9 @@ export function custErrors(c: Customer): CustErrors {
   const out: CustErrors = {};
   if (!c.name.trim()) out.name = 'Required. Enter the customer’s full name.';
   if (!c.phone.trim()) out.phone = 'Required. Enter a phone number.';
-  else if (!phoneOk(c.phone)) out.phone = 'Enter at least 7 digits.';
+  else if (!phoneOk(c.phone)) out.phone = 'Enter a phone number with at least 7 digits.';
   if (!c.ornament.trim()) out.ornament = 'Required. Name the ornament, for example “Lotus jhumka”.';
-  if (!emailOk(c.email)) out.email = 'This email looks incomplete. Example: name@example.com';
+  if (!emailOk(c.email)) out.email = 'Enter a complete email, for example name@example.com.';
   return out;
 }
 

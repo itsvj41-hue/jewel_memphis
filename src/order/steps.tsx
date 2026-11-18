@@ -352,7 +352,7 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
               </section>
               <div className="optlist">
                 {b !== null && s.fitOnly && mayFit.length === 0
-                  ? <div className="note bad">Nothing fits this budget at the current size. Raise the budget, or reduce the size on the left.</div>
+                  ? <div className="note bad" role="status">Nothing fits this budget at the current size. Raise the budget, or reduce the size on the left.</div>
                   : list.map(o => {
                     const over = b !== null && o.low > b;
                     const sel = s.metal === o.metalKey && s.stone === o.stoneKey;
