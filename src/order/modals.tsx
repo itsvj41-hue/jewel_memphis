@@ -16,6 +16,7 @@ function Overlay({ children, onClose }: { children: ReactNode; onClose: () => vo
 }
 
 export function RatesModal({ mk, onClose }: { mk: Market; onClose: () => void }) {
+  const { liveState } = useMarket();
   const rows: [string, number][] = [
     ['24K gold, per gram', mk.rates.gold24Gram],
     ...(['22K', '18K', '14K', '10K', 'S925', 'PT950'] as const).map(k =>
@@ -32,10 +33,13 @@ export function RatesModal({ mk, onClose }: { mk: Market; onClose: () => void })
       <table className="rates"><tbody>
         {rows.map(([label, v]) => <tr key={label}><td>{label}</td><td className="n">{money(v)}</td></tr>)}
       </tbody></table>
+      {liveState === 'failed' && (
+        <div className="note warn" role="alert">Live prices could not be reached. Owner rates are in use.</div>
+      )}
       <p className="muted">
         {mk.rates.source === 'live'
           ? 'Gold, silver and platinum are live spot prices. Stone prices are set in owner settings.'
-          : 'Showing owner-entered rates. Live prices are off or unavailable. Change them in Settings.'}
+          : 'Showing owner-entered rates. Change them in Settings.'}
       </p>
       <div className="actions"><span /><button className="btn dark" onClick={onClose}>Close</button></div>
     </Overlay>
@@ -49,7 +53,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   // An empty box is NaN, not 0, so a blank field is flagged instead of saved as zero.
   const num = (v: string) => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
   const show = (v: number) => (Number.isFinite(v) ? v : '');
-  const problem = settingsProblem(draft);
+  const depositEntries = depositsText.split(',').map(x => x.trim()).filter(x => x !== '');
+  const depositProblem = depositEntries.length === 0
+    || depositEntries.some(x => { const n = Number(x); return !Number.isFinite(n) || n <= 0 || n > 100; })
+    ? 'Deposit options must be percentages from 1 to 100, separated by commas, for example 25, 50, 100.'
+    : null;
+  const problem = settingsProblem(draft) ?? depositProblem;
   const set = <K extends keyof OwnerConfig>(k: K, v: OwnerConfig[K]) => setDraft({ ...draft, [k]: v });
 
   const save = () => {

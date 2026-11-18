@@ -508,6 +508,8 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] {
 .affix.prefix input { padding-left: 34px; padding-right: var(--s4); }
 .affix.prefix .unit { left: var(--s4); right: auto; font-size: var(--fs-lg); font-weight: 600; color: var(--text-2); }
 
+.sync-banner { margin: var(--s4) var(--s8) 0; }
+
 /* 15. Tablet and phone ------------------------------------------------------ */
 /* iPad landscape (≈1024–1180): keep two columns, tighten gutters */
 @media (max-width: 1100px) {

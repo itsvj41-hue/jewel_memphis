@@ -1,5 +1,6 @@
 import { Icon } from '../ui/Icon';
 import { useEffect, useState, type ChangeEvent } from 'react';
+import { saveOrderRemote } from './db';
 import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
 import { allCadOk, allOptions, cadRules, custErrors, custOk, depositDue, dimsOk, parseAmount, percentOf, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
 import { taxLabel } from './config';
@@ -32,6 +33,8 @@ export function CustomerStep({ s, dispatch }: StepProps) {
   // Required fields show their message after the first Continue. An email shows as soon as it is wrong.
   const shown = (k: CustKey) => (k === 'email' ? errs.email : tried ? errs[k] : undefined);
   const missingRequired = (['name', 'phone', 'ornament'] as const).filter(k => errs[k]);
+  const neededDate = c.needed ? parseISO(c.needed) : null;
+  const neededEarly = Boolean(neededDate && neededDate < ready);
 
   const next = () => {
     setTried(true);
@@ -93,8 +96,10 @@ export function CustomerStep({ s, dispatch }: StepProps) {
             </div>
             <label className="field">
               <span>Needed by<span className="opt">optional</span></span>
-              <input type="date" min={isoOf(ready)} value={c.needed} onChange={set('needed')} />
-              <small>Earliest ready date: {fmtDate(ready)}</small>
+              <input type="date" min={isoOf(ready)} value={c.needed} aria-invalid={neededEarly ? 'true' : undefined} onChange={set('needed')} />
+              {neededEarly
+                ? <small className="field-error">Too early. Earliest ready date is {fmtDate(ready)}. Choose a later date.</small>
+                : <small>Earliest ready date: {fmtDate(ready)}</small>}
             </label>
             <label className="field">
               <span>Notes<span className="opt">optional</span></span>
@@ -225,6 +230,7 @@ function FitPill({ o, b }: { o: Option; b: number | null }) {
 
 export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowRates: () => void }) {
   const { mk } = useMarket();
+  const [budgetErr, setBudgetErr] = useState<string | null>(null);
   const cur = priceOf(mk, s);
   const isOrig = s.orig !== null && s.orig.metal === s.metal && s.orig.stone === s.stone;
   const all = allOptions(mk, s.dims, s.mode, s.exact);
@@ -291,9 +297,9 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
           <section className="card">
             <div className="sec">Edit design</div>
             <div className="size">
-              <NumField label="Width mm" value={s.dims.w} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
-              <NumField label="Height mm" value={s.dims.h} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
-              <NumField label="Depth mm" value={s.dims.d} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
+              <NumField id="est-w" label="Width mm" value={s.dims.w} error={sizeErrors(s.dims).w} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
+              <NumField id="est-h" label="Height mm" value={s.dims.h} error={sizeErrors(s.dims).h} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
+              <NumField id="est-d" label="Depth mm" value={s.dims.d} error={sizeErrors(s.dims).d} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
             </div>
             <div className="sec" style={{ marginTop: 6 }}>Metal</div>
             <MetalChips s={s} dispatch={dispatch} />
@@ -320,15 +326,19 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
                     <input
                       type="number" inputMode="numeric" min="1" step="10" placeholder="Enter budget"
                       value={b ?? ''}
+                      aria-invalid={budgetErr ? 'true' : undefined}
                       onChange={e => {
                         const n = parseFloat(e.target.value);
-                        dispatch({ type: 'budget', value: Number.isFinite(n) && n > 0 ? n : null });
+                        const ok = Number.isFinite(n) && n > 0;
+                        setBudgetErr(e.target.value.trim() !== '' && !ok ? 'Enter a budget above $0.' : null);
+                        dispatch({ type: 'budget', value: ok ? n : null });
                       }}
                     />
                   </div>
+                  {budgetErr && <small className="field-error" style={{ width: '100%' }}>{budgetErr}</small>}
                   <div className="chips">
                     {[500, 750, 1000].map(v => (
-                      <button key={v} className={`chip ${b === v ? 'on' : ''}`} onClick={() => dispatch({ type: 'budget', value: v })}>${v}</button>
+                      <button key={v} className={`chip ${b === v ? 'on' : ''}`} onClick={() => { setBudgetErr(null); dispatch({ type: 'budget', value: v }); }}>${v}</button>
                     ))}
                   </div>
                 </div>
@@ -425,7 +435,16 @@ export function CadStep({ s, dispatch }: StepProps) {
             <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 2 })}><Icon name="arrowLeft" size={16} /> Edit estimate</button>
             {s.exact
               ? <button className="btn primary lg" onClick={() => dispatch({ type: 'go', step: 4 })}>Customer approves</button>
-              : <button className="btn primary lg" disabled={!allOk} style={!allOk ? { opacity: 0.5, cursor: 'not-allowed' } : undefined} onClick={() => dispatch({ type: 'generateCad' })}>Generate CAD model</button>}
+              : (
+                <div className="actions-stack">
+                  {!allOk && (
+                    <div className="note bad" role="alert">
+                      Generate is off until every rule check passes. Fix: {rules.filter(r => !r.ok).map(r => r.label).join('; ')}.
+                    </div>
+                  )}
+                  <button className="btn primary lg" disabled={!allOk} onClick={() => dispatch({ type: 'generateCad' })}>Generate CAD model</button>
+                </div>
+              )}
           </div>
         </section>
       </div>
@@ -461,6 +480,25 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
 
   // The box shows dollars. It keeps what the user typed while they type; invalid text is not saved.
   const [depositText, setDepositText] = useState(() => dep.toFixed(2));
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // The order is only marked sent once the shared list has saved it. On failure nothing changes.
+  const send = async () => {
+    setSending(true);
+    setSendError(null);
+    try {
+      await saveOrderRemote({ ...s, sent: true });
+      dispatch({ type: 'send' });
+    } catch (e) {
+      const locked = e instanceof Error && e.message === 'Locked';
+      setSendError(locked
+        ? 'Your counter is locked. Enter the PIN, then send again. The order was not sent.'
+        : 'The order could not be sent. Check the connection and try again. The order was not sent.');
+    } finally {
+      setSending(false);
+    }
+  };
   const typedAmt = parseAmount(depositText);
   const depError = typedAmt === null
     ? (depositText.trim() === '' ? 'Enter the deposit amount in dollars.' : 'Enter an amount above $0.')
@@ -662,9 +700,12 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
               {locked
                 ? <button className="btn dark lg" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>Start a new order</button>
                 : (
-                  <button className="btn primary lg" disabled={openCount > 0} onClick={() => dispatch({ type: 'send' })}>
-                    {openCount > 0 ? `Finish ${openCount} item${openCount === 1 ? '' : 's'} to send` : 'Send to workshop'}
-                  </button>
+                  <>
+                    {sendError && <div className="note bad" role="alert">{sendError}</div>}
+                    <button className="btn primary lg" disabled={openCount > 0 || sending} onClick={send}>
+                      {sending ? 'Sending…' : openCount > 0 ? `Finish ${openCount} item${openCount === 1 ? '' : 's'} to send` : 'Send to workshop'}
+                    </button>
+                  </>
                 )}
               <button className="btn lg" onClick={() => window.print()}>Print workshop ticket</button>
               {!locked && (

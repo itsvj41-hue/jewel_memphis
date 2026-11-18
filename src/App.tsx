@@ -74,6 +74,13 @@ function Counter() {
         <div className="step-count">Step {s.step + 1} of {STEP_NAMES.length} · {STEP_NAMES[s.step]}</div>
       </header>
 
+      {syncError && (
+        <div className="banner warn sync-banner" role="alert">
+          <span className="ic"><Icon name="alert" size={14} /></span>
+          <span>Not saved to the shared list. Your changes are kept on this device. Check the connection; they will save when it is back.</span>
+        </div>
+      )}
+
       <main>
         <Step s={s} dispatch={dispatch} onShowRates={() => setModal('rates')} />
       </main>
