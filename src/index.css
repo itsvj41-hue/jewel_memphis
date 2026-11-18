@@ -301,7 +301,16 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 .checks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s3); }
 .checks li { display: flex; gap: var(--s3); font-size: var(--fs-sm); }
-.checks li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.checks li { align-items: center; }
+.checks li::before {
+  content: ""; flex: none; width: 16px; height: 16px; margin-top: 0;
+  background: var(--ok);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.2 4.2L19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.2 4.2L19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.rule-text { display: inline-flex; align-items: center; gap: 6px; }
+.banner .ic { color: inherit; }
+.method .ic { font-size: 0; }
 .checks-block { display: flex; flex-direction: column; gap: var(--s2); }
 .check {
   display: flex; gap: var(--s3); align-items: center; min-height: var(--tap);

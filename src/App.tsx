@@ -1,3 +1,4 @@
+import { Icon } from './ui/Icon';
 import { useEffect, useState } from 'react';
 import { STEP_NAMES } from './order/data';
 import { useOrder } from './order/state';
@@ -61,7 +62,7 @@ function Counter() {
               return (
                 <span key={name} style={{ display: 'contents' }}>
                   <span className={`st ${cls}`} aria-current={i === s.step ? 'step' : undefined}>
-                    <span className="dot">{i < s.step ? '✓' : i + 1}</span>
+                    <span className="dot">{i < s.step ? <Icon name="check" size={13} /> : i + 1}</span>
                     <span className="lbl">{name}</span>
                   </span>
                   {i < STEP_NAMES.length - 1 && <span className={`sep ${i < s.step ? 'done' : ''}`} />}

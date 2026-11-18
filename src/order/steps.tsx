@@ -1,3 +1,4 @@
+import { Icon } from '../ui/Icon';
 import type { ChangeEvent } from 'react';
 import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
 import { allCadOk, allOptions, cadRules, custOk, dimsOk, price, readyDate, type Market, type Option } from './pricing';
@@ -23,7 +24,7 @@ export function CustomerStep({ s, dispatch }: StepProps) {
   return (
     <>
       {s.restored && (
-        <div className="banner ok"><span className="ic">✓</span><span>Draft restored. Your earlier entries are still here.</span></div>
+        <div className="banner ok"><span className="ic"><Icon name="check" size={14} /></span><span>Draft restored. Your earlier entries are still here.</span></div>
       )}
       <div className="grid2">
         <section className="card">
@@ -69,7 +70,7 @@ export function CustomerStep({ s, dispatch }: StepProps) {
         <div className="methods">
           {(Object.keys(METHODS) as Mode[]).map(k => (
             <button key={k} className={`method ${s.mode === k ? 'on' : ''}`} onClick={() => dispatch({ type: 'mode', mode: k })}>
-              <span className="ic">{METHODS[k].icon}</span>
+              <span className="ic"><Icon name={METHODS[k].icon} size={20} /></span>
               <span><b>{METHODS[k].title}</b><span className="t">{METHODS[k].text}</span></span>
             </button>
           ))}
@@ -90,7 +91,7 @@ export function CustomerStep({ s, dispatch }: StepProps) {
 /* ============================ STEP 2: DESIGN ============================ */
 export function DesignStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
-  const back = <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 0 })}>← Back</button>;
+  const back = <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 0 })}><Icon name="arrowLeft" size={16} /> Back</button>;
 
   if (s.mode === 'picture') {
     return (
@@ -307,7 +308,7 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
                         <Proportions share={{ metal: o.shareMetal, stone: o.shareStone, making: o.shareMaking }} />
                         <div className="oc">
                           <span>Metal {money(o.metal)} + stones {money(o.stone)} + making {money(o.making)}, before tax</span>
-                          {sel && <span className="picked">✓ Selected</span>}
+                          {sel && <span className="picked"><Icon name="check" size={13} /> Selected</span>}
                         </div>
                       </div>
                     );
@@ -320,7 +321,7 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
       <div className="bottombar">
         <div className="info">{bottomInfo}</div>
         <div className="right">
-          <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 1 })}>← Back</button>
+          <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 1 })}><Icon name="arrowLeft" size={16} /> Back</button>
           <button className="btn primary lg" disabled={curOver} onClick={() => dispatch({ type: 'go', step: 3 })}>
             Confirm and make CAD
           </button>
@@ -337,10 +338,10 @@ export function CadStep({ s, dispatch }: StepProps) {
   const rules = cadRules(s.dims);
   const allOk = allCadOk(s.dims);
   const banner = s.exact
-    ? <div className="banner ok"><span className="ic">✓</span><span>CAD model ready. Exact volume and price are locked for this size.</span></div>
+    ? <div className="banner ok"><span className="ic"><Icon name="check" size={14} /></span><span>CAD model ready. Exact volume and price are locked for this size.</span></div>
     : allOk
-      ? <div className="banner warn"><span className="ic">!</span><span>Generate the CAD model to lock the exact volume and price. Until then the price is an estimate.</span></div>
-      : <div className="banner warn"><span className="ic">!</span><span>A rule check failed. Change the size on the estimate page before generating the CAD model.</span></div>;
+      ? <div className="banner warn"><span className="ic"><Icon name="alert" size={14} /></span><span>Generate the CAD model to lock the exact volume and price. Until then the price is an estimate.</span></div>
+      : <div className="banner warn"><span className="ic"><Icon name="alert" size={14} /></span><span>A rule check failed. Change the size on the estimate page before generating the CAD model.</span></div>;
 
   return (
     <>
@@ -361,7 +362,7 @@ export function CadStep({ s, dispatch }: StepProps) {
           <div className="rule-list">
             {rules.map(r => (
               <div className={`rule ${r.ok ? '' : 'fail'}`} key={r.label}>
-                <span>{r.ok ? '✓' : '✕'} {r.label}</span>
+                <span className="rule-text"><Icon name={r.ok ? 'check' : 'close'} size={15} /> {r.label}</span>
                 <b>{r.detail}</b>
               </div>
             ))}
@@ -369,7 +370,7 @@ export function CadStep({ s, dispatch }: StepProps) {
           <p className="muted">The model uses the same width, height and depth as the price. Exact volume comes from this model. Print tolerance is ±5% (minimum ±0.35 mm).</p>
           <div className="grow" />
           <div className="actions">
-            <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 2 })}>← Edit estimate</button>
+            <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 2 })}><Icon name="arrowLeft" size={16} /> Edit estimate</button>
             {s.exact
               ? <button className="btn primary lg" onClick={() => dispatch({ type: 'go', step: 4 })}>Customer approves</button>
               : <button className="btn primary lg" disabled={!allOk} style={!allOk ? { opacity: 0.5, cursor: 'not-allowed' } : undefined} onClick={() => dispatch({ type: 'generateCad' })}>Generate CAD model</button>}
@@ -416,7 +417,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
     <>
       {s.sent && (
         <div className="banner ok">
-          <span className="ic">✓</span>
+          <span className="ic"><Icon name="check" size={14} /></span>
           <span>Order #{s.orderNo} sent to the workshop for {c.ornament}. Ready by {fmtDate(ready)}.</span>
         </div>
       )}
@@ -488,7 +489,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
                 <>
                   <button className="btn primary lg" disabled={missing.length > 0} onClick={() => dispatch({ type: 'send' })}>Send to workshop</button>
                   <div className="actions">
-                    <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 3 })}>← Back</button>
+                    <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 3 })}><Icon name="arrowLeft" size={16} /> Back</button>
                     <span className="faint">{missing.length ? `Missing: ${missing.join(', ')}` : 'Ready to send'}</span>
                   </div>
                 </>

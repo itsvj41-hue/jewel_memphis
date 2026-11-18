@@ -32,8 +32,8 @@ export const STONE_KEYS = Object.keys(STONES) as StoneKey[];
 export const OCCASIONS = ['Wedding', 'Festival', 'Gift', 'Everyday'];
 
 export const METHODS = {
-  picture: { title: 'Picture or CAD', text: 'Take a photo. Size is estimated from the picture.', icon: '◉' },
-  dims: { title: 'Dimensions and materials', text: 'Enter width, height and depth, then choose metal and stones.', icon: '▭' },
+  picture: { title: 'Picture or CAD', text: 'Take a photo. Size is estimated from the picture.', icon: 'camera' as const },
+  dims: { title: 'Dimensions and materials', text: 'Enter width, height and depth, then choose metal and stones.', icon: 'ruler' as const },
 };
 export type Mode = keyof typeof METHODS;
 

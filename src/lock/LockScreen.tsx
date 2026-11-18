@@ -1,3 +1,4 @@
+import { Icon } from '../ui/Icon';
 import { useState } from 'react';
 import { LockError, unlock } from './client';
 
@@ -58,7 +59,7 @@ export function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
             {keys.map((k, i) => k === ''
               ? <span key={i} />
               : k === '⌫'
-                ? <button key={i} className="pin-key ghost" aria-label="Delete last digit" onClick={() => { setPin(pin.slice(0, -1)); setErr(null); }} disabled={busy || pin.length === 0}>⌫</button>
+                ? <button key={i} className="pin-key ghost" aria-label="Delete last digit" onClick={() => { setPin(pin.slice(0, -1)); setErr(null); }} disabled={busy || pin.length === 0}><Icon name="backspace" size={24} /></button>
                 : <button key={i} className="pin-key" onClick={() => press(k)} disabled={busy}>{k}</button>)}
           </div>
 
