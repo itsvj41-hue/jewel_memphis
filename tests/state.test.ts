@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankOrder, reduce } from '../src/order/state';
+import { blankOrder, newOrderNo, normalizeOrder, reduce } from '../src/order/state';
 
 const start = blankOrder('CO-1');
 
@@ -48,5 +48,27 @@ describe('order reducer', () => {
     const loaded = reduce(start, { type: 'load', order: saved });
     expect(loaded.cust.name).toBe('Ana');
     expect(loaded.restored).toBe(false);
+  });
+});
+
+
+describe('order numbers and saved orders', () => {
+  it('gives each new order a different number', () => {
+    const nums = new Set(Array.from({ length: 2000 }, () => newOrderNo()));
+    expect(nums.size).toBe(2000);
+  });
+
+  it('fills missing fields and bad sizes from a saved order', () => {
+    const o = normalizeOrder({ orderNo: 'CO-1', dims: { w: NaN, h: 12, d: -3 } as never, step: 9 });
+    expect(o.dims).toEqual({ w: 22, h: 12, d: 5 });
+    expect(o.step).toBe(0);
+    expect(o.checks.details).toBe(false);
+    expect(o.cust.name).toBe('');
+  });
+
+  it('loading an order uses the same defaults and clears the restored flag', () => {
+    const next = reduce(blankOrder('CO-2'), { type: 'load', order: { ...blankOrder('CO-9'), restored: true } as never });
+    expect(next.orderNo).toBe('CO-9');
+    expect(next.restored).toBe(false);
   });
 });

@@ -47,5 +47,15 @@ export function saveConfig(cfg: OwnerConfig): void {
   }
 }
 
+// Returns the first problem with the owner settings, or null when they can be saved.
+export function settingsProblem(c: OwnerConfig): string | null {
+  if (!Number.isFinite(c.makingFee) || c.makingFee < 0) return 'Making fee must be a number, zero or more.';
+  if (!Number.isFinite(c.taxRate) || c.taxRate < 0 || c.taxRate > 0.25) return 'Sales tax must be between 0% and 25%.';
+  if (Object.values(c.stonePerCt).some(v => !Number.isFinite(v) || v < 0)) return 'Stone prices must be numbers, zero or more.';
+  const { gold24, silver, platinum } = c.manualOz;
+  if (![gold24, silver, platinum].every(v => Number.isFinite(v) && v > 0)) return 'Manual metal prices must be above zero.';
+  return null;
+}
+
 export const taxLabel = (cfg: OwnerConfig): string =>
   `Sales tax (${(cfg.taxRate * 100).toFixed(2).replace(/\.?0+$/, '')}%, store location)`;

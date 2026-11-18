@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { KARATS, METALS, STONES, STONE_KEYS, TROY_OZ_GRAMS, type StoneKey } from './data';
-import { DEFAULT_CONFIG, taxLabel, type OwnerConfig } from './config';
+import { DEFAULT_CONFIG, settingsProblem, taxLabel, type OwnerConfig } from './config';
 import { gramRate, type Market } from './pricing';
 import { money, fmtDate } from './format';
 import { listOrdersRemote, type OrderRow } from './db';
@@ -46,10 +46,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { mk, setConfig, refreshRates } = useMarket();
   const [draft, setDraft] = useState<OwnerConfig>(mk.cfg);
   const [depositsText, setDepositsText] = useState(mk.cfg.deposits.join(', '));
-  const num = (v: string) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  // An empty box is NaN, not 0, so a blank field is flagged instead of saved as zero.
+  const num = (v: string) => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
+  const show = (v: number) => (Number.isFinite(v) ? v : '');
+  const problem = settingsProblem(draft);
   const set = <K extends keyof OwnerConfig>(k: K, v: OwnerConfig[K]) => setDraft({ ...draft, [k]: v });
 
   const save = () => {
+    if (problem) return;
     const deposits = depositsText.split(',').map(x => parseFloat(x)).filter(x => x > 0 && x <= 100);
     const next: OwnerConfig = {
       ...draft,
@@ -66,9 +70,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <div className="sec">Owner settings <span className="hint">this device</span></div>
       <div className="fields">
         <label className="field"><span>Making and setting, $</span>
-          <input type="number" value={draft.makingFee} onChange={e => set('makingFee', num(e.target.value))} /></label>
+          <input type="number" value={show(draft.makingFee)} onChange={e => set('makingFee', num(e.target.value))} /></label>
         <label className="field"><span>Sales tax, %</span>
-          <input type="number" step="0.01" value={+(draft.taxRate * 100).toFixed(4)} onChange={e => set('taxRate', num(e.target.value) / 100)} /></label>
+          <input type="number" step="0.01" value={show(+(draft.taxRate * 100).toFixed(4))} onChange={e => set('taxRate', num(e.target.value) / 100)} /></label>
         <label className="field full"><span>Deposit options, % (comma separated)</span>
           <input value={depositsText} onChange={e => setDepositsText(e.target.value)} /></label>
       </div>
@@ -76,7 +80,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <div className="fields">
         {STONE_KEYS.map((k: StoneKey) => (
           <label className="field" key={k}><span>{STONES[k].name}</span>
-            <input type="number" value={draft.stonePerCt[k]} onChange={e => set('stonePerCt', { ...draft.stonePerCt, [k]: num(e.target.value) })} /></label>
+            <input type="number" value={show(draft.stonePerCt[k])} onChange={e => set('stonePerCt', { ...draft.stonePerCt, [k]: num(e.target.value) })} /></label>
         ))}
       </div>
       <div className="sec">Metal prices</div>
@@ -85,16 +89,17 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <p className="muted">Used when live prices are off or unavailable. Spot prices, in USD per troy ounce:</p>
       <div className="fields">
         <label className="field"><span>Gold 24K</span>
-          <input type="number" value={+draft.manualOz.gold24.toFixed(2)} onChange={e => set('manualOz', { ...draft.manualOz, gold24: num(e.target.value) })} /></label>
+          <input type="number" value={show(+draft.manualOz.gold24.toFixed(2))} onChange={e => set('manualOz', { ...draft.manualOz, gold24: num(e.target.value) })} /></label>
         <label className="field"><span>Silver</span>
-          <input type="number" value={draft.manualOz.silver} onChange={e => set('manualOz', { ...draft.manualOz, silver: num(e.target.value) })} /></label>
+          <input type="number" value={show(draft.manualOz.silver)} onChange={e => set('manualOz', { ...draft.manualOz, silver: num(e.target.value) })} /></label>
         <label className="field"><span>Platinum</span>
-          <input type="number" value={draft.manualOz.platinum} onChange={e => set('manualOz', { ...draft.manualOz, platinum: num(e.target.value) })} /></label>
+          <input type="number" value={show(draft.manualOz.platinum)} onChange={e => set('manualOz', { ...draft.manualOz, platinum: num(e.target.value) })} /></label>
       </div>
       <p className="faint">{taxLabel(draft)} · Metals: {METALS.map(m => KARATS[m].label).join(', ')}</p>
       <div className="actions">
         <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary lg" onClick={save}>Save settings</button>
+        {problem && <div className="note bad" role="alert">{problem}</div>}
+        <button className="btn primary lg" onClick={save} disabled={Boolean(problem)}>Save settings</button>
       </div>
     </Overlay>
   );

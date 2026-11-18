@@ -29,8 +29,32 @@ export type Action =
   | { type: 'newOrder'; orderNo: string }
   | { type: 'load'; order: OrderState };
 
+// Order numbers are the database key, so they must not collide. Time plus a random
+// suffix gives a unique ID for practical purposes (the old 500-value range overwrote orders).
 export function newOrderNo(): string {
-  return 'CO-' + (2042 + Math.floor(Math.random() * 500));
+  const time = Date.now().toString(36).slice(-5).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase().padEnd(5, '0');
+  return `CO-${time}${rand}`;
+}
+
+// Fill any missing or invalid field from a blank order, so older or damaged saves still open.
+export function normalizeOrder(saved: Partial<OrderState>): OrderState {
+  const base = blankOrder(saved.orderNo ?? newOrderNo());
+  const dim = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback);
+  const step = typeof saved.step === 'number' && saved.step >= 0 && saved.step <= 4 ? saved.step : 0;
+  return {
+    ...base,
+    ...saved,
+    step,
+    cust: { ...base.cust, ...saved.cust },
+    dims: {
+      w: dim(saved.dims?.w, base.dims.w),
+      h: dim(saved.dims?.h, base.dims.h),
+      d: dim(saved.dims?.d, base.dims.d),
+    },
+    checks: { ...base.checks, ...saved.checks },
+    restored: false,
+  };
 }
 
 export function blankOrder(orderNo: string): OrderState {
@@ -99,7 +123,7 @@ export function reduce(s: OrderState, a: Action): OrderState {
     case 'newOrder':
       return blankOrder(a.orderNo);
     case 'load':
-      return { ...a.order, restored: false };
+      return normalizeOrder(a.order);
   }
 }
 
@@ -109,14 +133,7 @@ function loadInitial(): OrderState {
     if (raw) {
       const saved = JSON.parse(raw) as Partial<OrderState> | null;
       if (saved && !saved.sent) {
-        const base = blankOrder(saved.orderNo ?? newOrderNo());
-        return {
-          ...base,
-          ...saved,
-          cust: { ...base.cust, ...saved.cust },
-          checks: { ...base.checks, ...saved.checks },
-          restored: true,
-        } as OrderState;
+        return { ...normalizeOrder(saved), restored: true };
       }
     }
   } catch {

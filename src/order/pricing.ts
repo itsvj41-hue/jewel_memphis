@@ -72,11 +72,14 @@ export function price(mk: Market, d: Dims, m: Metal, s: StoneKey, mode: Mode, ex
   const high = (metal * (1 + tol) + stone + making) * (1 + mk.cfg.taxRate);
   return {
     grams, rate, metal, stone, making, subtotal, tax, total, low, high, tol,
-    shareMetal: (metal / subtotal) * 100,
-    shareStone: (stone / subtotal) * 100,
-    shareMaking: (making / subtotal) * 100,
+    shareMetal: share(metal, subtotal),
+    shareStone: share(stone, subtotal),
+    shareMaking: share(making, subtotal),
   };
 }
+
+// Percent of a total, safe when the total is zero (no divide-by-zero NaN in the bars).
+const share = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
 
 export function allOptions(mk: Market, d: Dims, mode: Mode, exact: boolean): Option[] {
   const out: Option[] = [];
@@ -85,12 +88,25 @@ export function allOptions(mk: Market, d: Dims, mode: Mode, exact: boolean): Opt
   return out.sort((a, b) => a.total - b.total);
 }
 
+// Largest size the counter accepts. Nothing in this range is a real ornament.
+export const MAX_DIM_MM = 300;
+
 export function dimsOk(d: Dims): boolean {
-  return (['w', 'h', 'd'] as const).every(k => Number.isFinite(d[k]) && d[k] > 0);
+  return (['w', 'h', 'd'] as const).every(k => Number.isFinite(d[k]) && d[k] > 0 && d[k] <= MAX_DIM_MM);
+}
+
+// A phone number needs at least 7 digits. Email is optional, but if given it must look like one.
+export function phoneOk(p: string): boolean {
+  return p.replace(/\D/g, '').length >= 7;
+}
+
+export function emailOk(e: string): boolean {
+  const v = e.trim();
+  return v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
 export function custOk(c: Customer): boolean {
-  return Boolean(c.name.trim() && c.phone.trim() && c.ornament.trim());
+  return Boolean(c.name.trim() && phoneOk(c.phone) && c.ornament.trim() && emailOk(c.email));
 }
 
 export interface CadRule {

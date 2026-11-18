@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, type OwnerConfig } from '../src/order/config';
-import { allCadOk, allOptions, cadRules, custOk, dimsOk, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
+import { allCadOk, allOptions, cadRules, custOk, dimsOk, MAX_DIM_MM, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
 import { TROY_OZ_GRAMS } from '../src/order/data';
 
 const rates = { gold24Gram: 130, silverGram: 1.6, platinumGram: 47, source: 'manual' as const, time: 'test' };
@@ -87,12 +87,37 @@ describe('input checks', () => {
     expect(dimsOk(dims)).toBe(true);
   });
   it('needs name, phone and ornament', () => {
-    const c = { name: 'A', phone: '1', email: '', ornament: 'X', occasion: '', needed: '', notes: '' };
+    const c = { name: 'A', phone: '(901) 555-0100', email: '', ornament: 'X', occasion: '', needed: '', notes: '' };
     expect(custOk(c)).toBe(true);
     expect(custOk({ ...c, phone: ' ' })).toBe(false);
+    expect(custOk({ ...c, phone: '555-01' })).toBe(false); // fewer than 7 digits
+  });
+
+  it('checks an optional email only when one is typed', () => {
+    const c = { name: 'A', phone: '9015550100', email: '', ornament: 'X', occasion: '', needed: '', notes: '' };
+    expect(custOk({ ...c, email: 'meera@example.com' })).toBe(true);
+    expect(custOk({ ...c, email: 'meera@' })).toBe(false);
+    expect(custOk({ ...c, email: 'not an email' })).toBe(false);
   });
 });
 
 it('converts troy ounces to grams for manual rates', () => {
   expect(TROY_OZ_GRAMS).toBeCloseTo(31.1035);
+});
+
+describe('size limits and shares', () => {
+  it('rejects sizes above the counter limit and zero or non-numbers', () => {
+    expect(dimsOk({ w: 22, h: 10, d: 5 })).toBe(true);
+    expect(dimsOk({ w: MAX_DIM_MM + 1, h: 10, d: 5 })).toBe(false);
+    expect(dimsOk({ w: 0, h: 10, d: 5 })).toBe(false);
+    expect(dimsOk({ w: NaN, h: 10, d: 5 })).toBe(false);
+  });
+
+  it('keeps the metal, stone and making shares finite when the subtotal is zero', () => {
+    const zero: Market = { cfg: { ...DEFAULT_CONFIG, makingFee: 0, stonePerCt: { ...DEFAULT_CONFIG.stonePerCt, natural: 0 } }, rates: { ...rates, gold24Gram: 0 } };
+    const p = price(zero, dims, '18K', 'natural', 'picture', true);
+    expect(p.subtotal).toBe(0);
+    expect(Number.isFinite(p.shareMetal)).toBe(true);
+    expect(p.shareMetal).toBe(0);
+  });
 });
