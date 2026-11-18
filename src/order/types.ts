@@ -1,5 +1,22 @@
 import type { Metal, Mode, StoneKey } from './data';
 
+// One stone type and size needed for this ornament, priced like the vendor calculator.
+export interface StoneLine {
+  id: string;
+  type: StoneKey;
+  sizeMm: number;
+  qty: number;
+  perCt: number; // $ per carat
+  setting: number; // $ per stone
+}
+
+// A flat charge, such as plating or CAD design time.
+export interface ServiceLine {
+  id: string;
+  name: string;
+  cost: number;
+}
+
 export interface Dims {
   w: number;
   h: number;
@@ -32,10 +49,13 @@ export interface OrderState {
   photo: boolean;
   dims: Dims;
   metal: Metal;
-  stone: StoneKey;
-  orig: { metal: Metal; stone: StoneKey } | null;
+  weight: number | null; // finished grams; null = estimated from the size
+  waste: number; // waste %, added to the weight
+  labour: number; // labour $ per gram
+  markup: number; // quote = production cost × markup
+  stones: StoneLine[];
+  services: ServiceLine[];
   budget: number | null;
-  fitOnly: boolean;
   showBudget: boolean;
   exact: boolean; // true once the CAD model is generated for the current size
   depositAmount: number | null; // dollars paid now; null = not chosen yet (uses the default %)

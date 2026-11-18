@@ -1,18 +1,16 @@
 import { Icon } from '../ui/Icon';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { saveOrderRemote } from './db';
-import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
-import { allCadOk, allOptions, cadRules, custErrors, custOk, depositDue, dimsOk, parseAmount, percentOf, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
+import { KARATS, METALS, METHODS, OCCASIONS, STONE_KEYS, STONES, type Mode } from './data';
+import type { StoneKey } from './data';
+import { allCadOk, cadRules, custErrors, custOk, depositDue, dimsOk, parseAmount, percentOf, sizeErrors, type CustErrors, type CustKey } from './pricing';
+import { buildQuote, readyDate, stoneCost } from './quote';
+import { newId, newOrderNo } from './state';
 import { taxLabel } from './config';
 import { useMarket } from './market';
 import { fmtDate, isoOf, money, parseISO } from './format';
 import { CadViews } from './CadViews';
-import { newOrderNo } from './state';
-import { focusFirstInvalid, Kv, MetalChips, NumField, Proportions, StoneChips, TAX_SHORT, type StepProps } from './shared';
-
-function priceOf(mk: Market, s: StepProps['s']) {
-  return price(mk, s.dims, s.metal, s.stone, s.mode, s.exact);
-}
+import { focusFirstInvalid, Kv, NumField, type StepProps } from './shared';
 
 /* ============================ STEP 1: CUSTOMER ============================ */
 const REQUIRED_LABEL: Record<'name' | 'phone' | 'ornament', string> = {
@@ -26,7 +24,7 @@ export function CustomerStep({ s, dispatch }: StepProps) {
   const [tried, setTried] = useState(false);
   const c = s.cust;
   const errs: CustErrors = custErrors(c);
-  const ready = readyDate(s.metal, s.stone, s.mode);
+  const ready = readyDate(s.metal, s.stones, s.mode);
   const set = (key: keyof typeof c) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     dispatch({ type: 'cust', key, value: e.target.value });
 
@@ -165,7 +163,7 @@ export function DesignStep({ s, dispatch }: StepProps) {
               ? (
                 <div className="actions">
                   <button className="btn ghost" onClick={() => dispatch({ type: 'photo', on: false })}>Retake</button>
-                  <button className="btn primary lg" onClick={() => dispatch({ type: 'continueToEstimate' })}>Use this photo</button>
+                  <button className="btn primary lg" onClick={() => dispatch({ type: 'go', step: 2 })}>Use this photo</button>
                 </div>
               )
               : <button className="btn primary lg" onClick={() => dispatch({ type: 'photo', on: true })}>Take photo</button>}
@@ -176,7 +174,6 @@ export function DesignStep({ s, dispatch }: StepProps) {
     );
   }
 
-  const p = priceOf(mk, s);
   return (
     <>
       <div className="grid2">
@@ -187,18 +184,10 @@ export function DesignStep({ s, dispatch }: StepProps) {
             <NumField id="size-h" label="Height" value={s.dims.h} error={sizeTried ? se.h : undefined} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
             <NumField id="size-d" label="Depth" value={s.dims.d} error={sizeTried ? se.d : undefined} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
           </div>
-          <div className="sec" style={{ marginTop: 6 }}>Metal</div>
-          <MetalChips s={s} dispatch={dispatch} />
-          <div className="sec" style={{ marginTop: 6 }}>Stones <span className="hint">0.20 ct total</span></div>
-          <StoneChips s={s} dispatch={dispatch} />
         </section>
         <section className="card">
-          <div className="sec">Preview price</div>
-          <div className="kv total">
-            <span>Estimated price</span>
-            <b>{money(p.total)}<small>incl. {TAX_SHORT}</small></b>
-          </div>
-          <p className="muted">Updates as you change the size, metal or stones.</p>
+          <div className="sec">Next</div>
+          <p className="muted">On the next step you enter the metal and weight, the stones this ornament needs with their sizes and prices, any services, and the markup. The quote is worked out from those.</p>
           <div className="grow" />
           {sizeTried && !dimsOk(s.dims) && (
             <div className="banner warn" role="alert"><span className="ic"><Icon name="alert" size={14} /></span><span>Enter the width, height and depth in millimetres to continue.</span></div>
@@ -208,7 +197,7 @@ export function DesignStep({ s, dispatch }: StepProps) {
             onClick={() => {
               setSizeTried(true);
               if (!dimsOk(s.dims)) { focusFirstInvalid(); return; }
-              dispatch({ type: 'continueToEstimate' });
+              dispatch({ type: 'go', step: 2 });
             }}
           >
             Continue to estimate
@@ -220,49 +209,54 @@ export function DesignStep({ s, dispatch }: StepProps) {
   );
 }
 
-/* ============================ STEP 3: ESTIMATE ============================ */
-function FitPill({ o, b }: { o: Option; b: number | null }) {
-  if (b === null) return null;
-  if (o.high <= b) return <span className="pill ok">Within budget</span>;
-  if (o.low <= b) return <span className="pill warn">May exceed budget</span>;
-  return <span className="pill bad">Over by {money(o.low - b)}</span>;
+/* ============================ STEP 3: ESTIMATE (vendor-style quote) ============================ */
+const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+
+// A number box that accepts blanks, so the counter can clear a value and type a new one.
+function Num({ id, label, value, onChange, step = 'any', min = '0', suffix, hint, placeholder }: {
+  id: string; label: string; value: number | null; onChange: (n: number | null) => void;
+  step?: string; min?: string; suffix?: string; hint?: string; placeholder?: string;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <div className="affix">
+        <input
+          id={id}
+          type="number"
+          inputMode="decimal"
+          step={step}
+          min={min}
+          placeholder={placeholder}
+          value={value ?? ''}
+          onChange={e => {
+            const t = e.target.value;
+            onChange(t.trim() === '' ? null : Number(t));
+          }}
+        />
+        {suffix && <span className="unit">{suffix}</span>}
+      </div>
+      {hint && <small>{hint}</small>}
+    </label>
+  );
 }
 
 export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowRates: () => void }) {
-  const { mk } = useMarket();
+  const { mk, liveState } = useMarket();
+  const q = buildQuote(mk, s);
   const [budgetErr, setBudgetErr] = useState<string | null>(null);
-  const cur = priceOf(mk, s);
-  const isOrig = s.orig !== null && s.orig.metal === s.metal && s.orig.stone === s.stone;
-  const all = allOptions(mk, s.dims, s.mode, s.exact);
+  const sizes = Object.keys(mk.cfg.sizeCt).map(Number).sort((x, y) => x - y);
   const b = s.budget;
-  const mayFit = b === null ? [] : all.filter(o => o.low <= b);
-  const sure = b === null ? [] : all.filter(o => o.high <= b);
-  const list = (s.fitOnly && b !== null ? mayFit : all)
-    .slice()
-    .sort((x, y) => (b === null ? x.total - y.total : Math.abs(b - x.total) - Math.abs(b - y.total)));
-  const curOver = b !== null && cur.low > b;
-  const curMay = b !== null && !curOver && cur.high > b;
+  const overBy = b !== null && q.total > b ? q.total - b : 0;
 
-  const budgetSummary = b === null
-    ? 'Enter the budget to see which combinations fit.'
-    : mayFit.length
-      ? <><b>{sure.length} of {all.length}</b> combinations are within {money(b)}. <b>{mayFit.length - sure.length}</b> may exceed it once the CAD model is made.</>
-      : <>No combination fits {money(b)}. The lowest is <b>{money(all[0].low)}</b>. Try a higher budget or a smaller size.</>;
-
-  const bottomInfo = b === null
-    ? <>Selected: <b>{KARATS[s.metal].label}, {STONES[s.stone].name}</b> · {money(cur.total)}</>
-    : curOver
-      ? <>Selected: <b>{money(cur.total)}</b> is over the budget. Pick a combination that fits.</>
-      : <>Selected: <b>{KARATS[s.metal].label}, {STONES[s.stone].label}</b> · {money(cur.total)}{curMay
-        ? <span style={{ color: 'var(--warn)' }}> · may exceed budget after CAD</span>
-        : ' · within budget'}</>;
-
-  const volNote = s.exact
-    ? <span className="pill ok">Exact · from CAD</span>
-    : <span className="pill warn">Estimate · final price after CAD</span>;
+  const addStone = () => dispatch({
+    type: 'stoneAdd',
+    line: { id: newId(), type: 'natural', sizeMm: sizes[0] ?? 1, qty: 1, perCt: mk.cfg.stonePerCt.natural, setting: mk.cfg.settingPerStone },
+  });
+  const addService = () => dispatch({ type: 'serviceAdd', line: { id: newId(), name: '', cost: 0 } });
 
   const top = s.mode === 'picture'
-    ? <div className="photo" style={{ minHeight: 220 }}><b>Photo of the ornament</b><span style={{ fontSize: 13 }}>Size estimated from the photo</span></div>
+    ? <div className="photo" style={{ minHeight: 180 }}><b>Photo of the ornament</b><span style={{ fontSize: 13 }}>Size estimated from the photo</span></div>
     : (
       <section className="card">
         <div className="sec">Size</div>
@@ -276,57 +270,129 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
       <div className="grid2 l">
         <div className="col">
           {top}
+
           <section className="card">
-            <div className="sec">Estimate <span className="hint">{s.cust.ornament.trim() || 'This design'}</span></div>
-            <div>{volNote}</div>
-            <Kv label={`${KARATS[s.metal].label}, ${cur.grams.toFixed(2)} g`} value={money(cur.metal)} />
-            <Kv label={`${STONES[s.stone].name}, 0.20 ct`} value={money(cur.stone)} />
-            <Kv label="Making and setting" value={money(cur.making)} />
-            <Kv label="Subtotal" value={money(cur.subtotal)} cls="sub2" />
-            <Kv label={taxLabel(mk.cfg)} value={money(cur.tax)} cls="sub2" />
-            <div className="kv total">
-              <span>Estimated price</span>
-              <b>{money(cur.total)}</b>
+            <div className="sec">Metal</div>
+            <div className="chips" role="group" aria-label="Metal and karat">
+              {METALS.map(k => (
+                <button key={k} className={`chip ${s.metal === k ? 'on' : ''}`} onClick={() => dispatch({ type: 'metal', metal: k })}>{KARATS[k].label}</button>
+              ))}
             </div>
-            <div className="actions">
-              <span className="faint">{mk.rates.source === 'live' ? 'Live spot rates' : 'Owner rates'}, {mk.rates.time}</span>
-              <button className="link" onClick={onShowRates}>Show live prices</button>
+            <div className="fields">
+              <Num
+                id="weight-input"
+                label="Finished weight, g"
+                value={s.weight}
+                placeholder={q.weight.toFixed(2)}
+                onChange={v => dispatch({ type: 'weight', value: v })}
+                step="0.01"
+                suffix="g"
+                hint={q.weightIsEstimate ? `Estimated from size: ${q.weight.toFixed(2)} g. Type the weight from your scale.` : 'Weight entered for this ornament.'}
+              />
+              <Num id="waste-input" label="Waste / loss" value={s.waste} onChange={v => v !== null && dispatch({ type: 'waste', value: v })} step="0.5" suffix="%" hint="5% fabrication · 8–12% casting" />
+              <Num id="labour-input" label="Labour per gram" value={s.labour} onChange={v => v !== null && dispatch({ type: 'labour', value: v })} step="0.5" suffix="$/g" />
             </div>
-            {!isOrig && <button className="link" style={{ alignSelf: 'flex-start' }} onClick={() => dispatch({ type: 'resetOriginal' })}>Reset to original design</button>}
+            {!q.weightIsEstimate && <button className="link" style={{ alignSelf: 'flex-start' }} onClick={() => dispatch({ type: 'weight', value: null })}>Use the estimated weight</button>}
+            <div className="faint">{mk.rates.source === 'live' ? 'Live spot rates' : 'Owner rates'}, {mk.rates.time} · <button className="link inline" onClick={onShowRates}>Show prices</button></div>
           </section>
+
           <section className="card">
-            <div className="sec">Edit design</div>
+            <div className="sec">Stones for this ornament <span className="hint">{s.stones.length} stone{s.stones.length === 1 ? '' : 's'}</span></div>
+            {s.stones.length === 0 && <p className="muted">No stones yet. Add each stone type and size this ornament needs.</p>}
+            {s.stones.map(l => {
+              const c = stoneCost(mk, l);
+              return (
+                <div className="line-row" key={l.id}>
+                  <div className="row-a">
+                    <label className="field"><span>Stone</span>
+                      <select value={l.type} onChange={e => dispatch({ type: 'stoneUpdate', id: l.id, patch: { type: e.target.value as StoneKey, perCt: mk.cfg.stonePerCt[e.target.value as StoneKey] } })}>
+                        {STONE_KEYS.map(k => <option key={k} value={k}>{STONES[k].label}</option>)}
+                      </select>
+                    </label>
+                    <label className="field"><span>Size, mm</span>
+                      <select value={l.sizeMm} onChange={e => dispatch({ type: 'stoneUpdate', id: l.id, patch: { sizeMm: Number(e.target.value) } })}>
+                        {sizes.map(z => <option key={z} value={z}>{z} mm · {mk.cfg.sizeCt[String(z)]} ct</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="row-b">
+                    <Num id={`qty-${l.id}`} label="Qty" value={l.qty} onChange={v => dispatch({ type: 'stoneUpdate', id: l.id, patch: { qty: Math.max(0, Math.floor(v ?? 0)) } })} step="1" min="0" />
+                    <Num id={`ct-${l.id}`} label="$ per carat" value={l.perCt} onChange={v => dispatch({ type: 'stoneUpdate', id: l.id, patch: { perCt: v ?? 0 } })} step="1" suffix="$" />
+                    <Num id={`set-${l.id}`} label="Setting each" value={l.setting} onChange={v => dispatch({ type: 'stoneUpdate', id: l.id, patch: { setting: v ?? 0 } })} step="0.5" suffix="$" />
+                  </div>
+                  <div className="row-c">
+                    <span className="faint">{c.carats.toFixed(3)} ct total · line cost <b className="line-amt">{money(c.total)}</b></span>
+                    <button className="btn ghost" aria-label="Remove stone" onClick={() => dispatch({ type: 'stoneRemove', id: l.id })}><Icon name="close" size={16} /> Remove</button>
+                  </div>
+                </div>
+              );
+            })}
+            <div><button className="btn" onClick={addStone}>Add stone</button></div>
+          </section>
+
+          <section className="card">
+            <div className="sec">Services <span className="hint">flat charges, such as plating or CAD</span></div>
+            {s.services.length === 0 && <p className="muted">No services. Add plating, engraving or design time here.</p>}
+            {s.services.map(v => (
+              <div className="line-row" key={v.id}>
+                <div className="row-a">
+                  <label className="field"><span>Service</span>
+                    <input value={v.name} placeholder="e.g. Rhodium plating" onChange={e => dispatch({ type: 'serviceUpdate', id: v.id, patch: { name: e.target.value } })} />
+                  </label>
+                </div>
+                <div className="row-c">
+                  <div className="row-cost">
+                    <Num id={`svc-${v.id}`} label="Cost" value={v.cost} onChange={n => dispatch({ type: 'serviceUpdate', id: v.id, patch: { cost: n ?? 0 } })} step="1" suffix="$" />
+                  </div>
+                  <button className="btn ghost" aria-label="Remove service" onClick={() => dispatch({ type: 'serviceRemove', id: v.id })}><Icon name="close" size={16} /> Remove</button>
+                </div>
+              </div>
+            ))}
+            <div><button className="btn" onClick={addService}>Add service</button></div>
+          </section>
+
+          <section className="card">
+            <div className="sec">Edit size <span className="hint">millimetres</span></div>
             <div className="size">
-              <NumField id="est-w" label="Width mm" value={s.dims.w} error={sizeErrors(s.dims).w} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
-              <NumField id="est-h" label="Height mm" value={s.dims.h} error={sizeErrors(s.dims).h} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
-              <NumField id="est-d" label="Depth mm" value={s.dims.d} error={sizeErrors(s.dims).d} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
+              <NumField id="est-w" label="Width" value={s.dims.w} error={sizeErrors(s.dims).w} onChange={v => dispatch({ type: 'dim', key: 'w', value: v })} />
+              <NumField id="est-h" label="Height" value={s.dims.h} error={sizeErrors(s.dims).h} onChange={v => dispatch({ type: 'dim', key: 'h', value: v })} />
+              <NumField id="est-d" label="Depth" value={s.dims.d} error={sizeErrors(s.dims).d} onChange={v => dispatch({ type: 'dim', key: 'd', value: v })} />
             </div>
-            <div className="sec" style={{ marginTop: 6 }}>Metal</div>
-            <MetalChips s={s} dispatch={dispatch} />
-            <div className="sec" style={{ marginTop: 6 }}>Stones</div>
-            <StoneChips s={s} dispatch={dispatch} />
           </section>
         </div>
 
-        <div className="col" style={{ minHeight: 0 }}>
-          {!s.showBudget && (
-            <section className="card">
-              <div className="sec">Customer budget <span className="hint">optional</span></div>
-              <p className="muted">If the customer has a budget, enter it to see every metal and stone combination that fits, with its cost and proportions.</p>
+        <div className="col">
+          <section className="card quote">
+            <div className="sec">Quote breakdown</div>
+            <div>
+              <span className={`pill ${s.exact ? 'ok' : 'warn'}`}>{s.exact ? 'Size locked by CAD' : 'Estimate until CAD is made'}</span>
+            </div>
+            <Kv label={`${KARATS[s.metal].label}, ${q.weight.toFixed(2)} g + ${s.waste}% waste`} value={money(q.metal)} />
+            <Kv label={`Casting labour, ${q.weight.toFixed(2)} g × $${s.labour}`} value={money(q.labour)} />
+            <Kv label={`Stones (${s.stones.length})`} value={money(q.stones)} />
+            <Kv label={`Services (${s.services.length})`} value={money(q.services)} />
+            <div className="kv total sub-total"><span>Production cost</span><b>{money(q.production)}</b></div>
+            <div className="markup-row">
+              <Num id="markup-input" label="Markup multiplier" value={s.markup} onChange={v => v !== null && dispatch({ type: 'markup', value: v })} step="0.1" min="1" suffix="×" hint={`Quote = production × ${s.markup}. Gross margin ${pct(q.margin)}.`} />
+            </div>
+            <Kv label="Quote before tax" value={money(q.quote)} />
+            <div className="kv total"><span>Total incl. sales tax</span><b>{money(q.total)}</b></div>
+            <p className="faint">Tax is added on top of the quote: {money(q.tax)} at {(mk.cfg.taxRate * 100).toFixed(2)}%.{liveState === 'failed' ? ' Live prices could not be reached; owner rates are in use.' : ''}</p>
+          </section>
+
+          <section className="card">
+            <div className="sec">Customer budget <span className="hint">optional</span></div>
+            {b === null && (
               <div><button className="btn" onClick={() => dispatch({ type: 'showBudget' })}>Enter customer budget</button></div>
-            </section>
-          )}
-          {s.showBudget && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0 }}>
-              <section className="card">
-                <div className="sec">Customer budget <button className="link" onClick={() => dispatch({ type: 'hideBudget' })}>Remove</button></div>
+            )}
+            {b !== null && (
+              <>
                 <div className="budget-top">
                   <div className="moneyin">
                     <span>$</span>
                     <input
                       type="number" inputMode="numeric" min="1" step="10" placeholder="Enter budget"
-                      value={b ?? ''}
-                      id="budget-input"
+                      value={b} id="budget-input"
                       aria-invalid={budgetErr ? 'true' : undefined}
                       aria-describedby={budgetErr ? 'budget-err' : undefined}
                       onChange={e => {
@@ -337,58 +403,22 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
                       }}
                     />
                   </div>
-                  {budgetErr && <small id="budget-err" className="field-error" style={{ width: '100%' }}>{budgetErr}</small>}
-                  <div className="chips">
-                    {[500, 750, 1000].map(v => (
-                      <button key={v} className={`chip ${b === v ? 'on' : ''}`} onClick={() => { setBudgetErr(null); dispatch({ type: 'budget', value: v }); }}>${v}</button>
-                    ))}
-                  </div>
+                  <button className="link" onClick={() => dispatch({ type: 'hideBudget' })}>Remove</button>
                 </div>
-                <div className="bsum">{budgetSummary}</div>
-                <div className="seg" style={{ alignSelf: 'flex-start' }}>
-                  <button className={`chip ${s.fitOnly ? 'on' : ''}`} onClick={() => dispatch({ type: 'fit', fitOnly: true })}>Fits budget</button>
-                  <button className={`chip ${s.fitOnly ? '' : 'on'}`} onClick={() => dispatch({ type: 'fit', fitOnly: false })}>All combinations</button>
-                </div>
-              </section>
-              <div className="optlist">
-                {b !== null && s.fitOnly && mayFit.length === 0
-                  ? <div className="note bad" role="status">Nothing fits this budget at the current size. Raise the budget, or reduce the size on the left.</div>
-                  : list.map(o => {
-                    const over = b !== null && o.low > b;
-                    const sel = s.metal === o.metalKey && s.stone === o.stoneKey;
-                    return (
-                      <div
-                        key={`${o.metalKey}-${o.stoneKey}`}
-                        className={`opt-card ${sel ? 'sel' : ''} ${over ? 'over' : ''}`}
-                        onClick={() => { if (!over) dispatch({ type: 'select', metal: o.metalKey, stone: o.stoneKey }); }}
-                      >
-                        <div className="oh">
-                          <div>
-                            <b>{KARATS[o.metalKey].label} · {STONES[o.stoneKey].label}</b>
-                            <div className="meta">Metal {o.grams.toFixed(2)} g · 0.20 ct stones</div>
-                          </div>
-                          <div className="op"><b>{money(o.total)}</b><FitPill o={o} b={b} /></div>
-                        </div>
-                        <Proportions share={{ metal: o.shareMetal, stone: o.shareStone, making: o.shareMaking }} />
-                        <div className="oc">
-                          <span>Metal {money(o.metal)} + stones {money(o.stone)} + making {money(o.making)}, before tax</span>
-                          {sel && <span className="picked"><Icon name="check" size={13} /> Selected</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
+                {budgetErr && <small id="budget-err" className="field-error">{budgetErr}</small>}
+                {overBy > 0
+                  ? <div className="note bad" role="status">Over budget by {money(overBy)}. Reduce the stones, the services or the markup, or raise the budget.</div>
+                  : <div className="note ok" role="status">Within budget, with {money(b - q.total)} to spare.</div>}
+              </>
+            )}
+          </section>
         </div>
       </div>
       <div className="bottombar">
-        <div className="info">{bottomInfo}</div>
+        <div className="info">Quote <b>{money(q.quote)}</b> before tax · total <b>{money(q.total)}</b></div>
         <div className="right">
           <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 1 })}><Icon name="arrowLeft" size={16} /> Back</button>
-          <button className="btn primary lg" disabled={curOver} onClick={() => dispatch({ type: 'go', step: 3 })}>
-            Confirm and make CAD
-          </button>
+          <button className="btn primary lg" onClick={() => dispatch({ type: 'go', step: 3 })}>Confirm and make CAD</button>
         </div>
       </div>
     </>
@@ -398,13 +428,13 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
 /* ============================ STEP 4: CAD ============================ */
 export function CadStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
-  const p = priceOf(mk, s);
+  const q = buildQuote(mk, s);
   const rules = cadRules(s.dims);
   const allOk = allCadOk(s.dims);
   const banner = s.exact
-    ? <div className="banner ok"><span className="ic"><Icon name="check" size={14} /></span><span>CAD model ready. Exact volume and price are locked for this size.</span></div>
+    ? <div className="banner ok"><span className="ic"><Icon name="check" size={14} /></span><span>CAD model ready. The size is locked for this design.</span></div>
     : allOk
-      ? <div className="banner warn"><span className="ic"><Icon name="alert" size={14} /></span><span>Generate the CAD model to lock the exact volume and price. Until then the price is an estimate.</span></div>
+      ? <div className="banner warn"><span className="ic"><Icon name="alert" size={14} /></span><span>Generate the CAD model to lock the size. Until then the size can still change.</span></div>
       : <div className="banner warn"><span className="ic"><Icon name="alert" size={14} /></span><span>A rule check failed. Change the size on the estimate page before generating the CAD model.</span></div>;
 
   return (
@@ -419,9 +449,9 @@ export function CadStep({ s, dispatch }: StepProps) {
             <div><small>Height</small><b>{s.dims.h} mm</b></div>
             <div><small>Depth</small><b>{s.dims.d} mm</b></div>
           </div>
-          <Kv label="Metal" value={`${KARATS[s.metal].label}, ${p.grams.toFixed(2)} g`} />
-          <Kv label="Stones" value={`${STONES[s.stone].name}, 0.20 ct`} />
-          <div className="kv total"><span>Price incl. tax</span><b>{money(p.total)}</b></div>
+          <Kv label="Metal" value={`${KARATS[s.metal].label}, ${q.weight.toFixed(2)} g`} />
+          <Kv label="Stones" value={`${s.stones.length} type${s.stones.length === 1 ? '' : 's'} listed`} />
+          <div className="kv total"><span>Total incl. sales tax</span><b>{money(q.total)}</b></div>
           <div className="sec" style={{ marginTop: 14 }}>Rule checks</div>
           <div className="rule-list">
             {rules.map(r => (
@@ -431,7 +461,7 @@ export function CadStep({ s, dispatch }: StepProps) {
               </div>
             ))}
           </div>
-          <p className="muted">The model uses the same width, height and depth as the price. Exact volume comes from this model. Print tolerance is ±5% (minimum ±0.35 mm).</p>
+          <p className="muted">The model uses the same width, height and depth as the quote. The weight entered on the estimate is kept. Print tolerance is ±5% (minimum ±0.35 mm).</p>
           <div className="grow" />
           <div className="actions">
             <button className="btn ghost" onClick={() => dispatch({ type: 'go', step: 2 })}><Icon name="arrowLeft" size={16} /> Edit estimate</button>
@@ -465,9 +495,9 @@ interface Todo {
 
 export function ConfirmStep({ s, dispatch }: StepProps) {
   const { mk } = useMarket();
-  const o = priceOf(mk, s);
+  const o = buildQuote(mk, s);
   const c = s.cust;
-  const ready = readyDate(s.metal, s.stone, s.mode);
+  const ready = readyDate(s.metal, s.stones, s.mode);
   const needed = c.needed ? parseISO(c.needed) : null;
   const dateOk = !needed || needed >= ready;
   // The deposit that applies, in dollars. A deposit is never more than the total or less than zero.
@@ -527,7 +557,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
     },
     {
       key: 'cad', label: 'CAD model is generated',
-      detail: s.exact ? 'Volume and price are now final.' : 'Until then the price is only an estimate.',
+      detail: s.exact ? 'The size is locked for this design.' : 'Until then the size can still change.',
       done: s.exact, fixStep: 3,
     },
     {
@@ -636,8 +666,18 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
             <Kv label="Ornament" value={c.ornament} />
             <Kv label="How the design was given" value={src} />
             <Kv label="Size (width × height × depth)" value={`${s.dims.w} × ${s.dims.h} × ${s.dims.d} mm`} />
-            <Kv label="Metal" value={`${KARATS[s.metal].label}, ${o.grams.toFixed(2)} g`} />
-            <Kv label="Stones" value={`${STONES[s.stone].name}, 0.20 ct`} />
+            <Kv label="Metal" value={`${KARATS[s.metal].label}, ${o.weight.toFixed(2)} g${o.weightIsEstimate ? ' (estimated from size)' : ' (entered)'}`} />
+            <div className="sec" style={{ marginTop: 6 }}>Stones needed</div>
+            {s.stones.length === 0 && <p className="muted">No stones for this ornament.</p>}
+            {s.stones.map(l => {
+              const c = stoneCost(mk, l);
+              return (
+                <Kv key={l.id} label={`${l.qty} × ${l.sizeMm} mm ${STONES[l.type].name} (${c.carats.toFixed(3)} ct)`} value={money(c.total)} />
+              );
+            })}
+            <div className="sec" style={{ marginTop: 6 }}>Services</div>
+            {s.services.length === 0 && <p className="muted">No services.</p>}
+            {s.services.map(v => <Kv key={v.id} label={v.name || 'Service'} value={money(v.cost)} />)}
             {c.notes && <div className="note neutral">Notes for the workshop: {c.notes}</div>}
           </section>
         </div>
@@ -645,10 +685,14 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
         <div className="col">
           <section className="card">
             <div className="sec">Price breakdown</div>
-            <Kv label="Metal" value={money(o.metal)} />
-            <Kv label="Stones" value={money(o.stone)} />
-            <Kv label="Making and setting" value={money(o.making)} />
-            <Kv label="Subtotal" value={money(o.subtotal)} />
+            <Kv label={`Metal, incl. ${s.waste}% waste`} value={money(o.metal)} />
+            <Kv label="Casting labour" value={money(o.labour)} />
+            <Kv label="Stones and setting" value={money(o.stones)} />
+            <Kv label="Services" value={money(o.services)} />
+            <Kv label="Production cost" value={money(o.production)} />
+            <Kv label="Markup" value={`× ${s.markup}`} />
+            <Kv label="Gross margin" value={`${(o.margin * 100).toFixed(1)}%`} cls="sub2" />
+            <Kv label="Quote before tax" value={money(o.quote)} />
             <Kv label={taxLabel(mk.cfg)} value={money(o.tax)} />
             <div className="kv total"><span>Total</span><b>{money(o.total)}</b></div>
             <div className="divider" />
@@ -702,7 +746,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
             {!s.exact && !locked && <div className="note warn">The price is an estimate. Generate the CAD model on the CAD step to make it final.</div>}
             <div className="actions-stack">
               {locked
-                ? <button className="btn dark lg" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>Start a new order</button>
+                ? <button className="btn dark lg" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo(), terms: { markup: mk.cfg.markup, waste: mk.cfg.wastePct, labour: mk.cfg.labourPerG } })}>Start a new order</button>
                 : (
                   <>
                     {sendError && <div className="note bad" role="alert">{sendError}</div>}

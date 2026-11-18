@@ -47,30 +47,6 @@ export function focusFirstInvalid(): void {
   }, 0);
 }
 
-export function MetalChips({ s, dispatch }: StepProps) {
-  return (
-    <div className="chips">
-      {METALS.map((k: Metal) => (
-        <button key={k} className={`chip ${s.metal === k ? 'on' : ''}`} onClick={() => dispatch({ type: 'metal', metal: k })}>
-          {KARATS[k].label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function StoneChips({ s, dispatch }: StepProps) {
-  return (
-    <div className="chips">
-      {STONE_KEYS.map((k: StoneKey) => (
-        <button key={k} className={`chip ${s.stone === k ? 'on' : ''}`} onClick={() => dispatch({ type: 'stone', stone: k })}>
-          {STONES[k].label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function Proportions({ share }: { share: { metal: number; stone: number; making: number } }) {
   return (
     <>

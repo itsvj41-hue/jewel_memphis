@@ -78,12 +78,25 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     <Overlay onClose={onClose}>
       <div className="sec">Owner settings <span className="hint">this device</span></div>
       <div className="fields">
-        <label className="field"><span>Making and setting, $</span>
-          <input type="number" value={show(draft.makingFee)} onChange={e => set('makingFee', num(e.target.value))} /></label>
+        <label className="field"><span>Markup multiplier (quote = production × this)</span>
+          <input type="number" step="0.1" value={show(draft.markup)} onChange={e => set('markup', num(e.target.value))} /></label>
+        <label className="field"><span>Waste / loss, %</span>
+          <input type="number" step="0.5" value={show(draft.wastePct)} onChange={e => set('wastePct', num(e.target.value))} /></label>
+        <label className="field"><span>Casting labour, $ per gram</span>
+          <input type="number" step="0.5" value={show(draft.labourPerG)} onChange={e => set('labourPerG', num(e.target.value))} /></label>
+        <label className="field"><span>Setting charge, $ per stone</span>
+          <input type="number" step="0.5" value={show(draft.settingPerStone)} onChange={e => set('settingPerStone', num(e.target.value))} /></label>
         <label className="field"><span>Sales tax, %</span>
           <input type="number" step="0.01" value={show(+(draft.taxRate * 100).toFixed(4))} onChange={e => set('taxRate', num(e.target.value) / 100)} /></label>
         <label className="field full"><span>Deposit options, % (comma separated)</span>
           <input value={depositsText} onChange={e => setDepositsText(e.target.value)} /></label>
+      </div>
+      <div className="sec">Stone sizes, carat weight per stone <span className="hint">from your vendor table</span></div>
+      <div className="fields">
+        {Object.keys(draft.sizeCt).map(k => (
+          <label className="field" key={k}><span>{k} mm</span>
+            <input type="number" step="0.001" value={show(draft.sizeCt[k])} onChange={e => set('sizeCt', { ...draft.sizeCt, [k]: num(e.target.value) })} /></label>
+        ))}
       </div>
       <div className="sec">Stone prices, $ per carat</div>
       <div className="fields">

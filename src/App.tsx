@@ -51,7 +51,7 @@ function Counter() {
             </button>
             <button className="btn ghost" onClick={() => setModal('settings')}>Settings</button>
             <button className="btn ghost" onClick={lockNow}>Lock</button>
-            <button className="btn dark" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo() })}>New order</button>
+            <button className="btn dark" onClick={() => dispatch({ type: 'newOrder', orderNo: newOrderNo(), terms: { markup: mk.cfg.markup, waste: mk.cfg.wastePct, labour: mk.cfg.labourPerG } })}>New order</button>
           </div>
         </div>
         <div className="steps-bar">

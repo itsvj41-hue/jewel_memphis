@@ -2,8 +2,12 @@ import { STONES, STONE_KEYS, TROY_OZ_GRAMS, type StoneKey } from './data';
 
 // Owner-editable settings. Stored on this device until a shared settings table exists.
 export interface OwnerConfig {
-  makingFee: number;
   taxRate: number;
+  markup: number; // quote = production cost × markup (2.5 is the usual custom-work multiplier)
+  wastePct: number; // metal lost to sprues, filings and polishing
+  labourPerG: number; // casting or fabrication labour, $ per gram of finished weight
+  settingPerStone: number; // setting charge for each stone, $
+  sizeCt: Record<string, number>; // stone diameter in mm → carat weight
   deposits: number[];
   defaultDeposit: number;
   stonePerCt: Record<StoneKey, number>;
@@ -11,9 +15,23 @@ export interface OwnerConfig {
   useLivePrices: boolean;
 }
 
+// Carat weights by diameter. 1.5 mm = 0.015 ct is the vendor's figure; the others are approximate
+// round-brilliant weights. Replace them with your vendor's table in Settings.
+export const DEFAULT_SIZE_CT: Record<string, number> = {
+  '1': 0.005,
+  '1.25': 0.009,
+  '1.5': 0.015,
+  '1.75': 0.024,
+  '2': 0.036,
+};
+
 export const DEFAULT_CONFIG: OwnerConfig = {
-  makingFee: 80,
   taxRate: 0.0825,
+  markup: 2.5,
+  wastePct: 10,
+  labourPerG: 10,
+  settingPerStone: 3.5,
+  sizeCt: DEFAULT_SIZE_CT,
   deposits: [25, 50, 100],
   defaultDeposit: 50,
   stonePerCt: Object.fromEntries(STONE_KEYS.map(k => [k, STONES[k].perCt])) as Record<StoneKey, number>,
@@ -32,6 +50,7 @@ export function loadConfig(): OwnerConfig {
       ...DEFAULT_CONFIG,
       ...saved,
       stonePerCt: { ...DEFAULT_CONFIG.stonePerCt, ...saved.stonePerCt },
+      sizeCt: { ...DEFAULT_CONFIG.sizeCt, ...saved.sizeCt },
       manualOz: { ...DEFAULT_CONFIG.manualOz, ...saved.manualOz },
     };
   } catch {
@@ -49,7 +68,11 @@ export function saveConfig(cfg: OwnerConfig): void {
 
 // Returns the first problem with the owner settings, or null when they can be saved.
 export function settingsProblem(c: OwnerConfig): string | null {
-  if (!Number.isFinite(c.makingFee) || c.makingFee < 0) return 'Making fee must be a number, zero or more.';
+  if (!Number.isFinite(c.markup) || c.markup < 1 || c.markup > 10) return 'Markup must be between 1 and 10 (2.5 is typical).';
+  if (!Number.isFinite(c.wastePct) || c.wastePct < 0 || c.wastePct > 50) return 'Waste must be between 0% and 50%.';
+  if (!Number.isFinite(c.labourPerG) || c.labourPerG < 0) return 'Labour per gram must be a number, zero or more.';
+  if (!Number.isFinite(c.settingPerStone) || c.settingPerStone < 0) return 'Setting charge per stone must be a number, zero or more.';
+  if (Object.values(c.sizeCt).some(v => !Number.isFinite(v) || v <= 0)) return 'Every stone size needs a carat weight above 0.'; 
   if (!Number.isFinite(c.taxRate) || c.taxRate < 0 || c.taxRate > 0.25) return 'Sales tax must be between 0% and 25%.';
   if (Object.values(c.stonePerCt).some(v => !Number.isFinite(v) || v < 0)) return 'Stone prices must be numbers, zero or more.';
   const { gold24, silver, platinum } = c.manualOz;

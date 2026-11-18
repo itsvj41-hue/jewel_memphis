@@ -27,10 +27,18 @@ describe('order reducer', () => {
     expect(reduce(bad, { type: 'generateCad' }).exact).toBe(false);
     expect(reduce(start, { type: 'generateCad' }).exact).toBe(true);
   });
-  it('remembers the original design and restores it', () => {
-    const s = reduce({ ...start, metal: '10K' }, { type: 'continueToEstimate' });
-    const changed = reduce(s, { type: 'metal', metal: 'PT950' });
-    expect(reduce(changed, { type: 'resetOriginal' }).metal).toBe('10K');
+  it('adds, edits and removes stone lines', () => {
+    const line = { id: 'a', type: 'natural' as const, sizeMm: 1.5, qty: 2, perCt: 800, setting: 3 };
+    const added = reduce(start, { type: 'stoneAdd', line });
+    expect(added.stones).toHaveLength(1);
+    const edited = reduce(added, { type: 'stoneUpdate', id: 'a', patch: { qty: 4 } });
+    expect(edited.stones[0].qty).toBe(4);
+    expect(reduce(edited, { type: 'stoneRemove', id: 'a' }).stones).toHaveLength(0);
+  });
+  it('adds, edits and removes service lines', () => {
+    const added = reduce(start, { type: 'serviceAdd', line: { id: 'v', name: 'Plating', cost: 25 } });
+    expect(reduce(added, { type: 'serviceUpdate', id: 'v', patch: { cost: 30 } }).services[0].cost).toBe(30);
+    expect(reduce(added, { type: 'serviceRemove', id: 'v' }).services).toHaveLength(0);
   });
   it('clears the budget when the matrix is hidden', () => {
     const s = reduce({ ...start, budget: 1500 }, { type: 'hideBudget' });

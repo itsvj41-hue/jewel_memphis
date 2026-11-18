@@ -8,11 +8,12 @@ export const LEAD = { base: 14, queue: 3, cadPicture: 3, platinum: 7, premiumSto
 
 export type MetalFamily = 'gold' | 'platinum' | 'silver';
 
+// Purity factors as published in the vendor's jewelry pricing calculator.
 export const KARATS = {
-  '22K': { label: '22K gold', family: 'gold', purity: 22 / 24, density: 17.7 },
-  '18K': { label: '18K gold', family: 'gold', purity: 18 / 24, density: 15.5 },
-  '14K': { label: '14K gold', family: 'gold', purity: 14 / 24, density: 13.1 },
-  '10K': { label: '10K gold', family: 'gold', purity: 10 / 24, density: 11.6 },
+  '22K': { label: '22K gold', family: 'gold', purity: 0.9167, density: 17.7 },
+  '18K': { label: '18K gold', family: 'gold', purity: 0.75, density: 15.5 },
+  '14K': { label: '14K gold', family: 'gold', purity: 0.5833, density: 13.1 },
+  '10K': { label: '10K gold', family: 'gold', purity: 0.4167, density: 11.6 },
   PT950: { label: 'Platinum 950', family: 'platinum', purity: 0.95, density: 20.4 },
   S925: { label: 'Sterling silver 925', family: 'silver', purity: 0.925, density: 10.36 },
 } as const;
