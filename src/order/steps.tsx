@@ -63,18 +63,18 @@ export function CustomerStep({ s, dispatch }: StepProps) {
           <div className="fields">
             <label className="field">
               <span>Full name<span className="req" aria-hidden="true">*</span></span>
-              <input id="f-name" aria-required="true" aria-invalid={shown('name') ? 'true' : undefined} value={c.name} placeholder="e.g. Meera Sharma" onChange={set('name')} />
-              {shown('name') && <small className="field-error">{shown('name')}</small>}
+              <input id="f-name" aria-required="true" aria-invalid={shown('name') ? 'true' : undefined} aria-describedby={shown('name') ? 'f-name-err' : undefined} value={c.name} placeholder="e.g. Meera Sharma" onChange={set('name')} />
+              {shown('name') && <small id="f-name-err" className="field-error">{shown('name')}</small>}
             </label>
             <label className="field">
               <span>Phone<span className="req" aria-hidden="true">*</span></span>
-              <input id="f-phone" aria-required="true" inputMode="tel" aria-invalid={shown('phone') ? 'true' : undefined} value={c.phone} placeholder="(555) 000-0000" onChange={set('phone')} />
-              {shown('phone') && <small className="field-error">{shown('phone')}</small>}
+              <input id="f-phone" aria-required="true" inputMode="tel" aria-invalid={shown('phone') ? 'true' : undefined} aria-describedby={shown('phone') ? 'f-phone-err' : undefined} value={c.phone} placeholder="(555) 000-0000" onChange={set('phone')} />
+              {shown('phone') && <small id="f-phone-err" className="field-error">{shown('phone')}</small>}
             </label>
             <label className="field full">
               <span>Email<span className="opt">optional</span></span>
-              <input type="email" aria-invalid={shown('email') ? 'true' : undefined} value={c.email} placeholder="name@example.com" onChange={set('email')} />
-              {shown('email') && <small className="field-error">{shown('email')}</small>}
+              <input type="email" id="f-email" aria-invalid={shown('email') ? 'true' : undefined} aria-describedby={shown('email') ? 'f-email-err' : undefined} value={c.email} placeholder="name@example.com" onChange={set('email')} />
+              {shown('email') && <small id="f-email-err" className="field-error">{shown('email')}</small>}
             </label>
           </div>
         </section>
@@ -83,8 +83,8 @@ export function CustomerStep({ s, dispatch }: StepProps) {
           <div className="fields">
             <label className="field full">
               <span>Ornament name<span className="req" aria-hidden="true">*</span></span>
-              <input id="f-ornament" aria-required="true" aria-invalid={shown('ornament') ? 'true' : undefined} value={c.ornament} placeholder="e.g. Lotus jhumka" onChange={set('ornament')} />
-              {shown('ornament') && <small className="field-error">{shown('ornament')}</small>}
+              <input id="f-ornament" aria-required="true" aria-invalid={shown('ornament') ? 'true' : undefined} aria-describedby={shown('ornament') ? 'f-ornament-err' : undefined} value={c.ornament} placeholder="e.g. Lotus jhumka" onChange={set('ornament')} />
+              {shown('ornament') && <small id="f-ornament-err" className="field-error">{shown('ornament')}</small>}
             </label>
             <div className="field full">
               <span>Occasion<span className="opt">optional</span></span>
@@ -96,10 +96,10 @@ export function CustomerStep({ s, dispatch }: StepProps) {
             </div>
             <label className="field">
               <span>Needed by<span className="opt">optional</span></span>
-              <input type="date" min={isoOf(ready)} value={c.needed} aria-invalid={neededEarly ? 'true' : undefined} onChange={set('needed')} />
+              <input type="date" id="f-needed" min={isoOf(ready)} value={c.needed} aria-invalid={neededEarly ? 'true' : undefined} aria-describedby={neededEarly ? 'f-needed-err' : 'f-needed-hint'} onChange={set('needed')} />
               {neededEarly
-                ? <small className="field-error">Too early. Earliest ready date is {fmtDate(ready)}. Choose a later date.</small>
-                : <small>Earliest ready date: {fmtDate(ready)}</small>}
+                ? <small id="f-needed-err" className="field-error">Too early. Earliest ready date is {fmtDate(ready)}. Choose a later date.</small>
+                : <small id="f-needed-hint">Earliest ready date: {fmtDate(ready)}</small>}
             </label>
             <label className="field">
               <span>Notes<span className="opt">optional</span></span>
@@ -326,7 +326,9 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
                     <input
                       type="number" inputMode="numeric" min="1" step="10" placeholder="Enter budget"
                       value={b ?? ''}
+                      id="budget-input"
                       aria-invalid={budgetErr ? 'true' : undefined}
+                      aria-describedby={budgetErr ? 'budget-err' : undefined}
                       onChange={e => {
                         const n = parseFloat(e.target.value);
                         const ok = Number.isFinite(n) && n > 0;
@@ -335,7 +337,7 @@ export function EstimateStep({ s, dispatch, onShowRates }: StepProps & { onShowR
                       }}
                     />
                   </div>
-                  {budgetErr && <small className="field-error" style={{ width: '100%' }}>{budgetErr}</small>}
+                  {budgetErr && <small id="budget-err" className="field-error" style={{ width: '100%' }}>{budgetErr}</small>}
                   <div className="chips">
                     {[500, 750, 1000].map(v => (
                       <button key={v} className={`chip ${b === v ? 'on' : ''}`} onClick={() => { setBudgetErr(null); dispatch({ type: 'budget', value: v }); }}>${v}</button>
@@ -675,7 +677,9 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
                   inputMode="decimal"
                   disabled={locked}
                   placeholder="0.00"
+                  id="deposit-input"
                   aria-invalid={depError ? 'true' : undefined}
+                  aria-describedby={depError ? 'deposit-err' : undefined}
                   value={depositText}
                   onChange={e => {
                     const t = e.target.value;
@@ -687,7 +691,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
                 />
                 <span className="unit">$</span>
               </div>
-              {depError && <small className="field-error">{depError}</small>}
+              {depError && <small id="deposit-err" className="field-error">{depError}</small>}
             </label>
             <Kv label={`Deposit due now (${depPct}% of total)`} value={money(dep)} />
             <Kv label="Balance due at pickup" value={money(balance)} />
