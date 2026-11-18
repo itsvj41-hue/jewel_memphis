@@ -23,7 +23,7 @@ export type Action =
   | { type: 'resetOriginal' }
   | { type: 'continueToEstimate' }
   | { type: 'generateCad' }
-  | { type: 'deposit'; value: number }
+  | { type: 'deposit'; value: number | null }
   | { type: 'check'; key: CheckKey; on: boolean }
   | { type: 'send' }
   | { type: 'newOrder'; orderNo: string }
@@ -40,6 +40,10 @@ export function newOrderNo(): string {
 // Fill any missing or invalid field from a blank order, so older or damaged saves still open.
 export function normalizeOrder(saved: Partial<OrderState>): OrderState {
   const base = blankOrder(saved.orderNo ?? newOrderNo());
+  // Drafts saved before deposits were amounts stored a percentage; those fall back to the default.
+  const amount = typeof saved.depositAmount === 'number' && Number.isFinite(saved.depositAmount) && saved.depositAmount > 0
+    ? saved.depositAmount
+    : null;
   const dim = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback);
   const step = typeof saved.step === 'number' && saved.step >= 0 && saved.step <= 4 ? saved.step : 0;
   return {
@@ -53,6 +57,7 @@ export function normalizeOrder(saved: Partial<OrderState>): OrderState {
       d: dim(saved.dims?.d, base.dims.d),
     },
     checks: { ...base.checks, ...saved.checks },
+    depositAmount: amount,
     restored: false,
   };
 }
@@ -72,7 +77,7 @@ export function blankOrder(orderNo: string): OrderState {
     fitOnly: true,
     showBudget: false,
     exact: false,
-    deposit: DEFAULT_CONFIG.defaultDeposit,
+    depositAmount: null,
     checks: { details: false, design: false, price: false, deposit: false },
     sent: false,
     restored: false,
@@ -115,8 +120,9 @@ export function reduce(s: OrderState, a: Action): OrderState {
     case 'generateCad':
       return allCadOk(s.dims) ? { ...s, exact: true } : s;
     case 'deposit':
-      // Only 1 to 100 percent is a real deposit. Anything else keeps the current value.
-      return Number.isFinite(a.value) && a.value > 0 && a.value <= 100 ? { ...s, deposit: a.value } : s;
+      // A deposit is a positive dollar amount, rounded to cents. The total limit is checked on screen.
+      if (a.value === null) return { ...s, depositAmount: null };
+      return Number.isFinite(a.value) && a.value > 0 ? { ...s, depositAmount: Math.round(a.value * 100) / 100 } : s;
     case 'check':
       return { ...s, checks: { ...s.checks, [a.key]: a.on } };
     case 'send':

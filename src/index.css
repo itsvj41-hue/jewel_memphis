@@ -505,6 +505,8 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] {
 .affix input { padding-right: 44px; }
 .affix .unit { position: absolute; right: var(--s4); top: 50%; transform: translateY(-50%); color: var(--text-3); font-weight: 600; pointer-events: none; }
 .deposit-custom { margin-top: var(--s2); max-width: 320px; }
+.affix.prefix input { padding-left: 34px; padding-right: var(--s4); }
+.affix.prefix .unit { left: var(--s4); right: auto; font-size: var(--fs-lg); font-weight: 600; color: var(--text-2); }
 
 /* 15. Tablet and phone ------------------------------------------------------ */
 /* iPad landscape (≈1024–1180): keep two columns, tighten gutters */

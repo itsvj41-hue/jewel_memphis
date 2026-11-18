@@ -1,7 +1,7 @@
 import { KARATS, STONES } from './data';
 import { price, readyDate } from './pricing';
 import { useMarket } from './market';
-import { fmtDate } from './format';
+import { fmtDate, money } from './format';
 import type { OrderState } from './types';
 
 // Workshop job ticket. Hidden on screen; printed through the browser's print dialog.
@@ -22,7 +22,7 @@ export function WorkshopTicket({ s }: { s: OrderState }) {
           <tr><th>Metal</th><td>{KARATS[s.metal].label}, {p.grams.toFixed(2)} g</td></tr>
           <tr><th>Stones</th><td>{STONES[s.stone].name}, 0.20 ct</td></tr>
           <tr><th>Ready by</th><td>{fmtDate(ready)}{needed ? ` · needed by ${fmtDate(needed)}` : ''}</td></tr>
-          <tr><th>Deposit</th><td>{s.deposit}% collected before work starts</td></tr>
+          <tr><th>Deposit</th><td>{s.depositAmount !== null ? `${money(s.depositAmount)} collected before work starts` : 'Not recorded'}</td></tr>
           <tr><th>Notes</th><td>{s.cust.notes || '—'}</td></tr>
         </tbody>
       </table>

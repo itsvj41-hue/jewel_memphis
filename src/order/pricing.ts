@@ -133,10 +133,26 @@ export function custErrors(c: Customer): CustErrors {
   return out;
 }
 
-// A deposit typed by the user: a percentage from 1 to 100. Returns null when it is not valid.
-export function parseDeposit(text: string): number | null {
-  const v = Number(text.trim().replace('%', ''));
-  return text.trim() !== '' && Number.isFinite(v) && v > 0 && v <= 100 ? Math.round(v * 100) / 100 : null;
+const cents = (n: number) => Math.round(n * 100) / 100;
+
+// A deposit typed in dollars, such as "300", "$1,250.50". Null when it is not a positive amount.
+export function parseAmount(text: string): number | null {
+  const clean = text.trim().replace(/[$,\s]/g, '');
+  if (clean === '') return null;
+  const v = Number(clean);
+  return Number.isFinite(v) && v > 0 ? cents(v) : null;
+}
+
+// The deposit that applies: the saved amount, or the default percentage of the total when none is saved.
+// Always within 0 and the total, rounded to cents.
+export function depositDue(total: number, saved: number | null, defaultPct: number): number {
+  const raw = saved ?? (total * defaultPct) / 100;
+  return cents(Math.min(Math.max(raw, 0), total));
+}
+
+// Dollar amount for a percentage of the total, e.g. 25% of $1,073.32 = $268.33.
+export function percentOf(total: number, pct: number): number {
+  return cents((total * pct) / 100);
 }
 
 export function custOk(c: Customer): boolean {

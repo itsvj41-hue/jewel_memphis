@@ -1,7 +1,7 @@
 import { Icon } from '../ui/Icon';
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { KARATS, METHODS, OCCASIONS, STONES, type Mode } from './data';
-import { allCadOk, allOptions, cadRules, custErrors, custOk, dimsOk, parseDeposit, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
+import { allCadOk, allOptions, cadRules, custErrors, custOk, depositDue, dimsOk, parseAmount, percentOf, price, readyDate, sizeErrors, type CustErrors, type CustKey, type Market, type Option } from './pricing';
 import { taxLabel } from './config';
 import { useMarket } from './market';
 import { fmtDate, isoOf, money, parseISO } from './format';
@@ -449,15 +449,34 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
   const ready = readyDate(s.metal, s.stone, s.mode);
   const needed = c.needed ? parseISO(c.needed) : null;
   const dateOk = !needed || needed >= ready;
-  const depositAmt = (o.total * s.deposit) / 100;
-  const balance = o.total - depositAmt;
+  // The deposit that applies, in dollars. A deposit is never more than the total or less than zero.
+  const dep = depositDue(o.total, s.depositAmount, mk.cfg.defaultDeposit);
+  const depositAmt = dep;
   const src = s.mode === 'picture' ? 'Picture, size estimated from the photo' : 'Size entered from the design';
   const locked = s.sent;
-  // A saved custom deposit (not one of the preset buttons) shows in the box.
-  const [depositText, setDepositText] = useState(() => (mk.cfg.deposits.includes(s.deposit) ? '' : String(s.deposit)));
-  const typed = parseDeposit(depositText);
+  const balance = o.total - dep;
+  const depPct = o.total > 0 ? Math.round((dep / o.total) * 1000) / 10 : 0;
   const presets = mk.cfg.deposits;
-  const depositInvalid = depositText.trim() !== '' && typed === null;
+  const overTotal = s.depositAmount !== null && s.depositAmount > o.total + 0.005;
+
+  // The box shows dollars. It keeps what the user typed while they type; invalid text is not saved.
+  const [depositText, setDepositText] = useState(() => dep.toFixed(2));
+  const typedAmt = parseAmount(depositText);
+  const depError = typedAmt === null
+    ? (depositText.trim() === '' ? 'Enter the deposit amount in dollars.' : 'Enter an amount above $0.')
+    : typedAmt > o.total
+      ? `The deposit cannot be more than the order total, ${money(o.total)}.`
+      : null;
+
+  // First time on this screen, record the default deposit so the amount on screen is the amount saved.
+  useEffect(() => {
+    if (!locked && s.depositAmount === null) {
+      dispatch({ type: 'deposit', value: dep });
+      setDepositText(dep.toFixed(2));
+    }
+    // Runs once when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Items the app can check itself: each open one has a Fix link to the screen that completes it.
   const automatic: Todo[] = [
@@ -470,6 +489,13 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
       key: 'cad', label: 'CAD model is generated',
       detail: s.exact ? 'Volume and price are now final.' : 'Until then the price is only an estimate.',
       done: s.exact, fixStep: 3,
+    },
+    {
+      key: 'deposit-limit', label: 'Deposit is within the order total',
+      detail: overTotal
+        ? `The deposit is more than the total of ${money(o.total)}. Enter a lower amount below.`
+        : `${money(dep)} of ${money(o.total)} total (${depPct}%).`,
+      done: !overTotal,
     },
     {
       key: 'date', label: 'Needed-by date is achievable',
@@ -487,7 +513,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
     { key: 'details', label: 'The customer has checked their name, phone and dates' },
     { key: 'design', label: 'The customer has approved the size, metal and stones' },
     { key: 'price', label: 'The customer has agreed to the price' },
-    { key: 'deposit', label: `The deposit of ${money(depositAmt)} (${s.deposit}%) has been collected` },
+    { key: 'deposit', label: `The deposit of ${money(dep)} has been collected` },
   ];
 
   const openCount = automatic.filter(t => !t.done).length + confirmations.filter(t => !s.checks[t.key]).length;
@@ -539,7 +565,7 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
         </div>
         <div className="summary-grid">
           <div><small>Total</small><b>{money(o.total)}</b></div>
-          <div><small>Deposit due now ({s.deposit}%)</small><b>{money(depositAmt)}</b></div>
+          <div><small>Deposit due now</small><b>{money(depositAmt)}</b></div>
           <div><small>Balance due at pickup</small><b>{money(balance)}</b></div>
           <div><small>Ready by</small><b>{fmtDate(ready)}</b></div>
         </div>
@@ -587,39 +613,45 @@ export function ConfirmStep({ s, dispatch }: StepProps) {
             <div className="kv total"><span>Total</span><b>{money(o.total)}</b></div>
             <div className="divider" />
             <div className="sec">Deposit <span className="hint">paid before the workshop starts</span></div>
-            <div className="chips" role="group" aria-label="Deposit percentage">
-              {presets.map(p => (
-                <button
-                  key={p}
-                  className={`chip ${s.deposit === p && !depositText.trim() ? 'on' : ''}`}
-                  disabled={locked}
-                  onClick={() => { setDepositText(''); dispatch({ type: 'deposit', value: p }); }}
-                >
-                  {p}%
-                </button>
-              ))}
+            <div className="chips" role="group" aria-label="Deposit presets">
+              {presets.map(p => {
+                const amt = percentOf(o.total, p);
+                const on = s.depositAmount !== null && Math.abs(dep - amt) < 0.005;
+                return (
+                  <button
+                    key={p}
+                    className={`chip ${on ? 'on' : ''}`}
+                    disabled={locked}
+                    onClick={() => { setDepositText(amt.toFixed(2)); dispatch({ type: 'deposit', value: amt }); }}
+                  >
+                    {p}% · {money(amt)}
+                  </button>
+                );
+              })}
             </div>
             <label className="field deposit-custom">
-              <span>Or enter another deposit<span className="opt">1 to 100%</span></span>
-              <div className="affix">
+              <span>Or type the deposit amount</span>
+              <div className="affix prefix">
                 <input
                   type="text"
                   inputMode="decimal"
                   disabled={locked}
-                  placeholder="e.g. 30"
-                  aria-invalid={depositInvalid ? 'true' : undefined}
+                  placeholder="0.00"
+                  aria-invalid={depError ? 'true' : undefined}
                   value={depositText}
                   onChange={e => {
-                    setDepositText(e.target.value);
-                    const v = parseDeposit(e.target.value);
-                    if (v !== null) dispatch({ type: 'deposit', value: v });
+                    const t = e.target.value;
+                    setDepositText(t);
+                    const v = parseAmount(t);
+                    if (v !== null && v <= o.total) dispatch({ type: 'deposit', value: v });
                   }}
+                  onBlur={() => setDepositText(dep.toFixed(2))}
                 />
-                <span className="unit">%</span>
+                <span className="unit">$</span>
               </div>
-              {depositInvalid && <small className="field-error">Enter a percentage from 1 to 100.</small>}
+              {depError && <small className="field-error">{depError}</small>}
             </label>
-            <Kv label={`Deposit due now (${s.deposit}%)`} value={money(depositAmt)} />
+            <Kv label={`Deposit due now (${depPct}% of total)`} value={money(dep)} />
             <Kv label="Balance due at pickup" value={money(balance)} />
           </section>
 

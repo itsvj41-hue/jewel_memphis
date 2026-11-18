@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, type OwnerConfig } from '../src/order/config';
-import { allCadOk, allOptions, cadRules, custOk, dimsOk, MAX_DIM_MM, parseDeposit, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
+import { allCadOk, allOptions, cadRules, custOk, dimsOk, MAX_DIM_MM, parseAmount, depositDue, percentOf, gramRate, leadDays, price, readyDate, type Market } from '../src/order/pricing';
 import { TROY_OZ_GRAMS } from '../src/order/data';
 
 const rates = { gold24Gram: 130, silverGram: 1.6, platinumGram: 47, source: 'manual' as const, time: 'test' };
@@ -122,16 +122,26 @@ describe('size limits and shares', () => {
   });
 });
 
-describe('custom deposit', () => {
-  it('accepts percentages from 1 to 100 and rejects everything else', () => {
-    expect(parseDeposit('30')).toBe(30);
-    expect(parseDeposit(' 33.5% ')).toBe(33.5);
-    expect(parseDeposit('1')).toBe(1);
-    expect(parseDeposit('100')).toBe(100);
-    expect(parseDeposit('0')).toBeNull();
-    expect(parseDeposit('101')).toBeNull();
-    expect(parseDeposit('-5')).toBeNull();
-    expect(parseDeposit('abc')).toBeNull();
-    expect(parseDeposit('')).toBeNull();
+describe('deposit amounts', () => {
+  it('reads dollar amounts, with or without $ and commas, and rejects the rest', () => {
+    expect(parseAmount('300')).toBe(300);
+    expect(parseAmount('$1,250.50')).toBe(1250.5);
+    expect(parseAmount(' 99.999 ')).toBe(100);
+    expect(parseAmount('0')).toBeNull();
+    expect(parseAmount('-5')).toBeNull();
+    expect(parseAmount('abc')).toBeNull();
+    expect(parseAmount('')).toBeNull();
+  });
+
+  it('uses the default percentage when no amount is saved, and never exceeds the total', () => {
+    expect(depositDue(1000, null, 50)).toBe(500);
+    expect(depositDue(1000, 300, 50)).toBe(300);
+    expect(depositDue(1000, 1500, 50)).toBe(1000);
+    expect(depositDue(1073.32, null, 25)).toBe(268.33);
+  });
+
+  it('turns a preset percentage into dollars', () => {
+    expect(percentOf(1073.32, 25)).toBe(268.33);
+    expect(percentOf(1073.32, 100)).toBe(1073.32);
   });
 });

@@ -38,7 +38,7 @@ export interface OrderState {
   fitOnly: boolean;
   showBudget: boolean;
   exact: boolean; // true once the CAD model is generated for the current size
-  deposit: number;
+  depositAmount: number | null; // dollars paid now; null = not chosen yet (uses the default %)
   checks: Checks;
   sent: boolean;
   restored: boolean;
